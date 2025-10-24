@@ -16,7 +16,3 @@ To print and update the current TTL value:
 sudo python ostealth.py get
 sudo python ostealth.py set 128
 ```
-
-## Issues
-
-At the moment, setting the TTL to a value other than 64 makes TCP packets stop working.

@@ -23,6 +23,8 @@ static unsigned int ttl_hook(void *priv, struct sk_buff *skb, const struct nf_ho
     {
         struct iphdr *ip_header = ip_hdr(skb);
         ip_header->ttl = custom_ttl;
+        ip_header->check = 0;
+        ip_header->check = ip_fast_csum((unsigned char *)ip_header, ip_header->ihl);
         pr_info("Modified TTL of packet to %u\n", custom_ttl);
     }
     return NF_ACCEPT;
