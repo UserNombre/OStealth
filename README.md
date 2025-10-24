@@ -5,6 +5,11 @@ custom value and exposes a device to fetch and modify said value.
 
 ## Usage
 
+Before starting development install pre-commit to the repo:
+```
+pre-commit install
+```
+
 To compile the kernel module and load it:
 ```
 make
