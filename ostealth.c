@@ -72,9 +72,9 @@ static int __init ostealth_init(void)
 {
     // NetFilter hook configuration
     hook_ops.hook = ttl_hook;
-    hook_ops.hooknum = NF_INET_POST_ROUTING;
-    hook_ops.pf = PF_INET;
-    hook_ops.priority = NF_IP_PRI_FIRST;
+    hook_ops.hooknum = NF_INET_POST_ROUTING;    // Outgoing packets
+    hook_ops.pf = PF_INET;  // Only IPv4 packets
+    hook_ops.priority = NF_IP_PRI_FIRST;    // Set hook as High priority
     // Hook registration
     if(nf_register_net_hook(&init_net, &hook_ops) < 0)
     {
