@@ -62,27 +62,28 @@ static struct miscdevice misc_device =
 
 static int __init ostealth_init(void)
 {
+    // NetFilter hook configuration
     hook_ops.hook = ttl_hook;
     hook_ops.hooknum = NF_INET_POST_ROUTING;
     hook_ops.pf = PF_INET;
     hook_ops.priority = NF_IP_PRI_FIRST;
+    // Hook registration
     if(nf_register_net_hook(&init_net, &hook_ops) < 0)
     {
         pr_err("OStealth hook registration failed\n");
         goto error;
     }
-
+    // Device registration
     if(misc_register(&misc_device))
     {
         pr_err("Failed to register misc device\n");
-        goto error_deregister;
+        nf_unregister_net_hook(&init_net, &hook_ops);
+        goto error;
     }
 
     pr_info("OStealth module loaded\n");
     return 0;
 
-error_deregister:
-    misc_deregister(&misc_device);
 error:
     return -1;
 }
