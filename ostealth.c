@@ -17,6 +17,14 @@ MODULE_LICENSE("GPL");
 static struct nf_hook_ops hook_ops;
 static unsigned char custom_ttl = 64;
 
+
+/**
+* Netfilter hook function that modifies all the outgoing IPv4 packets
+* @priv: Optional private data passed to the hook (unused here)
+* @skb:  Socket buffer representing the network packet (headers + payload)
+* @state: Hook context (hook point, netns, in/out interfaces)
+* Return: NF_ACCEPT to continue normal packet processing.
+*/
 static unsigned int ttl_hook(void *priv, struct sk_buff *skb, const struct nf_hook_state *state)
 {
     if(skb)
