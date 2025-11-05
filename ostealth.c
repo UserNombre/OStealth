@@ -3,6 +3,7 @@
 #include <linux/netfilter_ipv4.h>
 #include <linux/skbuff.h>
 #include <linux/ip.h>
+#include <net/tcp.h>
 #include <linux/miscdevice.h>
 #include <linux/ioctl.h>
 #include <linux/uaccess.h>
@@ -12,11 +13,13 @@ MODULE_LICENSE("GPL");
 #define DEVICE_NAME "ostealth"
 #define IOCTL_MAGIC 0x05
 #define IOCTL_SET_TTL _IOW(IOCTL_MAGIC, 1, unsigned char)
-#define IOCTL_GET_TTL _IOR(IOCTL_MAGIC, 2, unsigned char)
+#define IOCTL_GET_TTL _IOR(IOCTL_MAGIC, 1, unsigned char)
+#define IOCTL_SET_WINDOW_SIZE _IOW(IOCTL_MAGIC, 2, unsigned short)
+#define IOCTL_GET_WINDOW_SIZE _IOR(IOCTL_MAGIC, 2, unsigned short)
 
 static struct nf_hook_ops hook_ops;
-static unsigned char custom_ttl = 64;
-
+static unsigned char custom_ttl = ~0;
+static unsigned short custom_window_size = ~0;
 
 /**
 * Netfilter hook function that modifies all the outgoing IPv4 packets
@@ -25,15 +28,35 @@ static unsigned char custom_ttl = 64;
 * @state: Hook context (hook point, netns, in/out interfaces)
 * Return: NF_ACCEPT to continue normal packet processing.
 */
-static unsigned int ttl_hook(void *priv, struct sk_buff *skb, const struct nf_hook_state *state)
+static unsigned int ostealth_hook(void *priv, struct sk_buff *skb, const struct nf_hook_state *state)
 {
     if(skb)
     {
+        // Fake IP header
         struct iphdr *ip_header = ip_hdr(skb);
+        // Update TTL
         ip_header->ttl = custom_ttl;
+        // Recompute the checksum
         ip_header->check = 0;
         ip_header->check = ip_fast_csum((unsigned char *)ip_header, ip_header->ihl);
         pr_info("Modified TTL of packet to %u\n", custom_ttl);
+
+        if(ip_header->protocol != IPPROTO_TCP)
+            return NF_ACCEPT;
+
+        // Fake TCP header
+        struct tcphdr *tcp_header = tcp_hdr(skb);
+        // Only modify the window size of SYN packets
+        if (tcp_header->syn)
+        {
+            // Update window size
+            tcp_header->window = htons(custom_window_size);
+            // Recompute the checksum
+            tcp_header->check = 0;
+            // TODO: this line is sketchy, ensure that the checksum is correctly computed
+            tcp_header->check = ~tcp_v4_check(ntohs(ip_header->tot_len) - (ip_header->ihl * 4), ip_header->saddr, ip_header->daddr, 0);
+            pr_info("Modified Window Size of packet to %u\n", custom_window_size);
+        }
     }
     return NF_ACCEPT;
 }
@@ -50,7 +73,16 @@ static long misc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
             if(copy_to_user((unsigned char __user *)arg, &custom_ttl, sizeof(custom_ttl)))
                 return -EFAULT;
             return 0;
+        case IOCTL_SET_WINDOW_SIZE:
+            if(copy_from_user(&custom_window_size, (unsigned char __user *)arg, sizeof(custom_window_size)))
+                return -EFAULT;
+            return 0;
+        case IOCTL_GET_WINDOW_SIZE:
+            if(copy_to_user((unsigned char __user *)arg, &custom_window_size, sizeof(custom_window_size)))
+                return -EFAULT;
+            return 0;
         default:
+            pr_info("Invalid command 0x%X\n", cmd);
             return -ENOTTY;
     }
 }
@@ -71,7 +103,7 @@ static struct miscdevice misc_device =
 static int __init ostealth_init(void)
 {
     // NetFilter hook configuration
-    hook_ops.hook = ttl_hook;
+    hook_ops.hook = ostealth_hook;
     hook_ops.hooknum = NF_INET_POST_ROUTING;    // Outgoing packets
     hook_ops.pf = PF_INET;  // Only IPv4 packets
     hook_ops.priority = NF_IP_PRI_FIRST;    // Set hook as High priority
