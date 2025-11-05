@@ -1,0 +1,2 @@
+https://fennecj.github.io/lkmpg/#hello-world
+https://nmap.org/book/osdetect.html

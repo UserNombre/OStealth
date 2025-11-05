@@ -10,6 +10,12 @@ Before starting development install pre-commit to the repo:
 pre-commit install
 ```
 
+Before attempting to compile the kernel module install the appropriate linux headers for the machine. For instance, an Intel Kali
+would required the following command:
+```
+sudo apt install linux-headers-amd64
+```
+
 To compile the kernel module and load it:
 ```
 make
