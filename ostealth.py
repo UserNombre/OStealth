@@ -1,3 +1,4 @@
+import sys
 import fcntl
 import struct
 import click
@@ -11,29 +12,46 @@ def _IOC(dir, type, nr, size):
     return (dir << 30) | (size << 16) | (type << 8) |  nr
 
 IOCTL_MAGIC = 0x05
-IOCTL_SET_TTL = _IOC(IOC_WRITE, IOCTL_MAGIC, 1, 1)
-IOCTL_GET_TTL = _IOC(IOC_READ, IOCTL_MAGIC, 2, 1)
 DEVICE_PATH = "/dev/ostealth"
 
-@click.command()
-@click.argument("ttl_value", type=int)
-def ttl_set(ttl_value):
-    with open(DEVICE_PATH, "wb") as fd:
-        fcntl.ioctl(fd, IOCTL_SET_TTL, struct.pack("B", ttl_value))
-        click.echo(f"Successfully set TTL to {ttl_value}")
+ioctl_data = {
+    "ttl": {
+        "set": _IOC(IOC_WRITE, IOCTL_MAGIC, 1, 1),
+        "get": _IOC(IOC_READ, IOCTL_MAGIC, 1, 1),
+        "size": 1
+    },
+    "window_size": {
+        "set": _IOC(IOC_WRITE, IOCTL_MAGIC, 2, 2),
+        "get": _IOC(IOC_READ, IOCTL_MAGIC, 2, 2),
+        "size": 2
+    }
+}
 
 @click.command()
-def ttl_get():
+@click.argument("field", type=click.Choice(ioctl_data.keys()))
+@click.argument("value", type=int)
+def set_field(field, value):
+    data = ioctl_data[field]
+    with open(DEVICE_PATH, "wb") as fd:
+        packed = value.to_bytes(data["size"], byteorder=sys.byteorder)
+        fcntl.ioctl(fd, data["set"], packed)
+        click.echo(f"Successfully set {field} to {value}")
+
+@click.command()
+@click.argument("field", type=click.Choice(ioctl_data.keys()))
+def get_field(field):
+    data = ioctl_data[field]
     with open(DEVICE_PATH, "rb") as fd:
-        ttl_value = struct.unpack("B", fcntl.ioctl(fd, IOCTL_GET_TTL, b'\0'))[0]
-        click.echo(f"Current TTL value is {ttl_value}")
+        packed = fcntl.ioctl(fd, data["get"], b"\0" * data["size"])
+        value = int.from_bytes(packed, byteorder=sys.byteorder)
+        click.echo(f"Current {field} value is {value}")
 
 @click.group()
 def cli():
     pass
 
-cli.add_command(ttl_set, "set")
-cli.add_command(ttl_get, "get")
+cli.add_command(set_field, "set")
+cli.add_command(get_field, "get")
 
 if __name__ == "__main__":
     try:
