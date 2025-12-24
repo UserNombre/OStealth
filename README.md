@@ -9,7 +9,7 @@ OStealth uses eBPF (extended Berkeley Packet Filter) attached to the TC (Traffic
 ```
 # Install dependencies
 sudo apt update
-sudo apt install -y clang llvm libbpf-dev iproute2 tcpdump
+sudo apt install -y clang llvm libbpf-dev iproute2 tcpdump bpftool
 
 # Fix ARM64 header symlink issue (if using Mac ARM)
 sudo ln -sf /usr/include/aarch64-linux-gnu/asm /usr/include/asm
