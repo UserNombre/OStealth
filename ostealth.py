@@ -1,61 +1,77 @@
-import sys
-import fcntl
+# ============================================================================
+# OStealth Python Control Plane
+# ============================================================================
+
+#!/usr/bin/env python3
+'''
+eBPF OS Fingerprint Spoofer - Control Plane
+Loads and configures the eBPF TC egress program to modify outgoing SYN packets
+'''
+
+#!/usr/bin/env python3
+import subprocess
 import struct
-import click
 
-# https://github.com/vpelletier/python-ioctl-opt/blob/master/ioctl_opt/__init__.py
-IOC_NONE = 0
-IOC_WRITE = 1
-IOC_READ = 2
+def find_map_id(map_name="config_map"):
+    """Find the map ID by name"""
+    result = subprocess.run(['bpftool', 'map', 'list'], 
+                          capture_output=True, text=True)
+    for line in result.stdout.split('\n'):
+        if map_name in line:
+            # Extract ID from line like "12: array  name config_map..."
+            map_id = line.split(':')[0]
+            return int(map_id)
+    return None
 
-def _IOC(dir, type, nr, size):
-    return (dir << 30) | (size << 16) | (type << 8) |  nr
-
-IOCTL_MAGIC = 0x05
-DEVICE_PATH = "/dev/ostealth"
-
-ioctl_data = {
-    "ttl": {
-        "set": _IOC(IOC_WRITE, IOCTL_MAGIC, 1, 1),
-        "get": _IOC(IOC_READ, IOCTL_MAGIC, 1, 1),
-        "size": 1
-    },
-    "window_size": {
-        "set": _IOC(IOC_WRITE, IOCTL_MAGIC, 2, 2),
-        "get": _IOC(IOC_READ, IOCTL_MAGIC, 2, 2),
-        "size": 2
-    }
-}
-
-@click.command()
-@click.argument("field", type=click.Choice(ioctl_data.keys()))
-@click.argument("value", type=int)
-def set_field(field, value):
-    data = ioctl_data[field]
-    with open(DEVICE_PATH, "wb") as fd:
-        packed = value.to_bytes(data["size"], byteorder=sys.byteorder)
-        fcntl.ioctl(fd, data["set"], packed)
-        click.echo(f"Successfully set {field} to {value}")
-
-@click.command()
-@click.argument("field", type=click.Choice(ioctl_data.keys()))
-def get_field(field):
-    data = ioctl_data[field]
-    with open(DEVICE_PATH, "rb") as fd:
-        packed = fcntl.ioctl(fd, data["get"], b"\0" * data["size"])
-        value = int.from_bytes(packed, byteorder=sys.byteorder)
-        click.echo(f"Current {field} value is {value}")
-
-@click.group()
-def cli():
-    pass
-
-cli.add_command(set_field, "set")
-cli.add_command(get_field, "get")
+def configure_spoofer(enabled=True, mss=1460, ttl=128, df=1, window=65535):
+    """Configure OS spoofing parameters"""
+    map_id = find_map_id()
+    if not map_id:
+        print("[-] Error: config_map not found. Is the eBPF program loaded?")
+        return False
+    
+    # Pack the struct (little-endian)
+    # struct os_config: u32 enabled, u16 mss, u8 ttl, u8 df, u16 window
+    config = struct.pack('<I H B B x x H', 
+                        1 if enabled else 0,
+                        mss,
+                        ttl,
+                        df,
+                        window)
+    
+    # Update map using bpftool
+    key = struct.pack('<I', 0)  # Key = 0
+    
+    cmd = ['bpftool', 'map', 'update', 'id', str(map_id),
+           'key', 'hex'] + [f'{b:02x}' for b in key] + \
+          ['value', 'hex'] + [f'{b:02x}' for b in config]
+    
+    result = subprocess.run(cmd, capture_output=True)
+    
+    if result.returncode == 0:
+        print(f"[+] Configuration applied to map ID {map_id}:")
+        print(f"    Enabled: {enabled}")
+        print(f"    MSS: {mss}")
+        print(f"    TTL: {ttl}")
+        print(f"    DF: {df}")
+        print(f"    Window: {window}")
+        return True
+    else:
+        print(f"[-] Error updating map: {result.stderr.decode()}")
+        return False
 
 if __name__ == "__main__":
+    import sys
+    
+    # Example: Spoof as Windows (TTL=128, Window=65535)
+    configure_spoofer(enabled=True, mss=1460, ttl=128, df=1, window=65535)
+    
+    print("\n[*] Press Ctrl+C to disable...")
     try:
-        cli()
-    except Exception as e:
-        click.echo(f"Error: {e}")
-        raise SystemExit(1)
+        import time
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n[*] Disabling spoofer...")
+        configure_spoofer(enabled=False)
+        print("[*] Done!")

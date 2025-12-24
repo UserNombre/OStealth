@@ -1,139 +1,95 @@
-#include <linux/module.h>
-#include <linux/netfilter.h>
-#include <linux/netfilter_ipv4.h>
-#include <linux/skbuff.h>
+// ============================================================================
+// eBPF TC Egress Program (runs in kernel)
+// ============================================================================
+
+// #include "vmlinux.h"    // TODO Use it to enable CO-RE?
+
+#include <linux/bpf.h>
+#include <linux/if_ether.h>
 #include <linux/ip.h>
-#include <net/tcp.h>
-#include <linux/miscdevice.h>
-#include <linux/ioctl.h>
-#include <linux/uaccess.h>
+#include <linux/in.h>
+#include <linux/tcp.h>
+#include <linux/pkt_cls.h>
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_endian.h>
 
-MODULE_LICENSE("GPL");
 
-#define DEVICE_NAME "ostealth"
-#define IOCTL_MAGIC 0x05
-#define IOCTL_SET_TTL _IOW(IOCTL_MAGIC, 1, unsigned char)
-#define IOCTL_GET_TTL _IOR(IOCTL_MAGIC, 1, unsigned char)
-#define IOCTL_SET_WINDOW_SIZE _IOW(IOCTL_MAGIC, 2, unsigned short)
-#define IOCTL_GET_WINDOW_SIZE _IOR(IOCTL_MAGIC, 2, unsigned short)
-
-static struct nf_hook_ops hook_ops;
-static unsigned char custom_ttl = ~0;
-static unsigned short custom_window_size = ~0;
-
-/**
-* Netfilter hook function that modifies all the outgoing IPv4 packets
-* @priv: Optional private data passed to the hook (unused here)
-* @skb:  Socket buffer representing the network packet (headers + payload)
-* @state: Hook context (hook point, netns, in/out interfaces)
-* Return: NF_ACCEPT to continue normal packet processing.
-*/
-static unsigned int ostealth_hook(void *priv, struct sk_buff *skb, const struct nf_hook_state *state)
-{
-    if(skb)
-    {
-        // Fake IP header
-        struct iphdr *ip_header = ip_hdr(skb);
-        // Update TTL
-        ip_header->ttl = custom_ttl;
-        // Recompute the checksum
-        ip_header->check = 0;
-        ip_header->check = ip_fast_csum((unsigned char *)ip_header, ip_header->ihl);
-        pr_info("Modified TTL of packet to %u\n", custom_ttl);
-
-        if(ip_header->protocol != IPPROTO_TCP)
-            return NF_ACCEPT;
-
-        // Fake TCP header
-        struct tcphdr *tcp_header = tcp_hdr(skb);
-        // Only modify the window size of SYN packets
-        if (tcp_header->syn)
-        {
-            // Update window size
-            tcp_header->window = htons(custom_window_size);
-            // Recompute the checksum
-            tcp_header->check = 0;
-            // TODO: this line is sketchy, ensure that the checksum is correctly computed
-            tcp_header->check = ~tcp_v4_check(ntohs(ip_header->tot_len) - (ip_header->ihl * 4), ip_header->saddr, ip_header->daddr, 0);
-            pr_info("Modified Window Size of packet to %u\n", custom_window_size);
-        }
-    }
-    return NF_ACCEPT;
-}
-
-static long misc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
-{
-    switch(cmd)
-    {
-        case IOCTL_SET_TTL:
-            if(copy_from_user(&custom_ttl, (unsigned char __user *)arg, sizeof(custom_ttl)))
-                return -EFAULT;
-            return 0;
-        case IOCTL_GET_TTL:
-            if(copy_to_user((unsigned char __user *)arg, &custom_ttl, sizeof(custom_ttl)))
-                return -EFAULT;
-            return 0;
-        case IOCTL_SET_WINDOW_SIZE:
-            if(copy_from_user(&custom_window_size, (unsigned char __user *)arg, sizeof(custom_window_size)))
-                return -EFAULT;
-            return 0;
-        case IOCTL_GET_WINDOW_SIZE:
-            if(copy_to_user((unsigned char __user *)arg, &custom_window_size, sizeof(custom_window_size)))
-                return -EFAULT;
-            return 0;
-        default:
-            pr_info("Invalid command 0x%X\n", cmd);
-            return -ENOTTY;
-    }
-}
-
-static const struct file_operations misc_ops =
-{
-    .owner = THIS_MODULE,
-    .unlocked_ioctl = misc_ioctl,
+// Configuration map - userspace sets these values
+struct os_config {
+    __u32 enabled;         // Whether spoofing is enabled
+    __u16 mss_value;       // Target MSS value
+    __u8 ttl_value;        // Target TTL value
+    __u8 df_flag;          // Don't Fragment flag
+    __u16 window_size;     // TCP Window Size
 };
 
-static struct miscdevice misc_device =
-{
-    .minor = MISC_DYNAMIC_MINOR,
-    .name = DEVICE_NAME,
-    .fops = &misc_ops,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __type(key, __u32);
+    __type(value, struct os_config);
+    __uint(max_entries, 1);
+} config_map SEC(".maps");
 
-static int __init ostealth_init(void)
-{
-    // NetFilter hook configuration
-    hook_ops.hook = ostealth_hook;
-    hook_ops.hooknum = NF_INET_POST_ROUTING;    // Outgoing packets
-    hook_ops.pf = PF_INET;  // Only IPv4 packets
-    hook_ops.priority = NF_IP_PRI_FIRST;    // Set hook as High priority
-    // Hook registration
-    if(nf_register_net_hook(&init_net, &hook_ops) < 0)
-    {
-        pr_err("OStealth hook registration failed\n");
-        goto error;
+
+// The annotation tells the eBPF loader that this function hooks into the TC egress path
+SEC("tc_egress")
+int spoof_syn_packet(struct __sk_buff *skb) {
+    // Extract packet data from kernel socket buffer
+    void *data = (void *)(long)skb->data;
+    void *data_end = (void *)(long)skb->data_end;
+
+    // Prove to the eBPF verifier that memory access is safe
+    struct ethhdr *eth = data;
+    if (data + sizeof(*eth) > data_end)
+        return TC_ACT_OK;
+
+    // Process only IPv4 packets
+    if (eth->h_proto != bpf_htons(ETH_P_IP))
+        return TC_ACT_OK;
+
+    // Prove to the eBPF verifier that memory access is safe
+    struct iphdr *ip = data + sizeof(*eth);
+    if ((void *)ip + sizeof(*ip) > data_end)
+        return TC_ACT_OK;
+
+    // Process only TCP packets
+    if (ip->protocol != IPPROTO_TCP)
+        return TC_ACT_OK;
+
+    // Prove to the eBPF verifier that memory access is safe
+    struct tcphdr *tcp = (void *)ip + sizeof(*ip);
+    if ((void *)tcp + sizeof(*tcp) > data_end)
+        return TC_ACT_OK;
+
+    // Process only SYN packets 
+    if (!tcp->syn || tcp->ack)
+        return TC_ACT_OK;
+
+
+    // Get configuration from map
+    __u32 key = 0;
+    struct os_config *cfg = bpf_map_lookup_elem(&config_map, &key);
+    // The verifier requires NULL checks after map lookups
+    if (!cfg || !cfg->enabled)
+        return TC_ACT_OK;
+        
+
+    // Modify IP TTL
+    __u8 old_ttl = ip->ttl;
+    __u8 new_ttl = cfg->ttl_value;
+
+    if (old_ttl != new_ttl) {
+        // Calculate offset to TTL field
+        __u32 ip_off = sizeof(struct ethhdr) + offsetof(struct iphdr, ttl);
+        
+        bpf_skb_store_bytes(skb, ip_off, &new_ttl, 1, 0);
+        
+        // Recalculate IP checksum
+        __u32 csum_off = sizeof(struct ethhdr) + offsetof(struct iphdr, check);
+        bpf_l3_csum_replace(skb, csum_off, (__u16)old_ttl, (__u16)new_ttl, 2);
     }
-    // Device registration
-    if(misc_register(&misc_device))
-    {
-        pr_err("Failed to register misc device\n");
-        nf_unregister_net_hook(&init_net, &hook_ops);
-        goto error;
-    }
 
-    pr_info("OStealth module loaded\n");
-    return 0;
-
-error:
-    return -1;
+    return TC_ACT_OK;
 }
 
-static void __exit ostealth_exit(void)
-{
-    misc_deregister(&misc_device);
-    nf_unregister_net_hook(&init_net, &hook_ops);
-    pr_info("OStealth module unloaded\n");
-}
-
-module_init(ostealth_init);
-module_exit(ostealth_exit);
+char _license[] SEC("license") = "GPL";
