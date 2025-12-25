@@ -30,6 +30,89 @@ struct {
     __uint(max_entries, 1);
 } config_map SEC(".maps");
 
+// IP checksum calculation
+static __always_inline __u16 ip_fast_csum(void *iph, __u32 ihl, void* data_end)
+{
+    // ONLY WORKS FOR SYN PACKETS WITH NO OPTIONS (20 BYTES)
+    __u16 *buf = (__u16 *)iph;
+    __u64 csum = 0;
+    
+    // Hardcoded unroll for 20 bytes (10 words)
+    csum += buf[0];
+    csum += buf[1];
+    csum += buf[2];
+    csum += buf[3];
+    csum += buf[4];
+    csum += buf[5];
+    csum += buf[6];
+    csum += buf[7];
+    csum += buf[8];
+    csum += buf[9];
+    
+    // Fold
+    csum = (csum & 0xffffffff) + (csum >> 32);
+    csum = (csum & 0xffff) + (csum >> 16);
+    csum = (csum & 0xffff) + (csum >> 16);
+    return ~(__u16)csum;
+    /*
+    __u16 *buf = (__u16 *)iph;
+    __u64 csum = 0;
+    
+    #pragma unroll
+    for (int i = 0; i < 15; i++) {  // Max 60 bytes = 15 words
+        // Only access if within logical header length
+        if (i < ihl) {
+            // Only access if within physical packet bounds
+            if ((void *)(buf + i + 1) <= data_end) {
+                csum += buf[i];
+            }
+        }
+    }
+    
+    // Fold 64 -> 16
+    csum = (csum & 0xffffffff) + (csum >> 32);
+    csum = (csum & 0xffff) + (csum >> 16);
+    csum = (csum & 0xffff) + (csum >> 16); // Double fold for safety
+    
+    return ~(__u16)csum;
+    */
+}
+
+// TCP checksum (pseudo-header + TCP header + data)
+static __always_inline __u16 tcp_checksum(struct iphdr *iph, struct tcphdr *tcph, 
+                                          void *data_end, __u16 tcp_len)
+{
+    __u32 csum = 0;
+    
+    // Pseudo-header
+    __u32 saddr = iph->saddr;
+    __u32 daddr = iph->daddr;
+    
+    csum += saddr & 0xFFFF;
+    csum += saddr >> 16;
+    csum += daddr & 0xFFFF;
+    csum += daddr >> 16;
+    csum += bpf_htons((__u16)IPPROTO_TCP);
+    csum += bpf_htons(tcp_len);
+    
+    // TCP header + data (as 16-bit words)
+    __u16 *buf = (__u16 *)tcph;
+    
+    #pragma unroll
+    for (int i = 0; i < 30; i++) {  // Max 60 bytes = 30 words
+        if ((void *)(buf + i + 1) > data_end)
+            break;
+        if (i != 8)  // Skip checksum field itself (offset 16, word 8)
+            csum += buf[i];
+    }
+    
+    // Fold to 16 bits
+    csum = (csum & 0xffff) + (csum >> 16);
+    csum = (csum & 0xffff) + (csum >> 16);
+    
+    return ~(__u16)csum;
+}
+
 
 // The annotation tells the eBPF loader that this function hooks into the TC egress path
 SEC("tc_egress")
@@ -40,31 +123,28 @@ int spoof_syn_packet(struct __sk_buff *skb) {
 
     // Prove to the eBPF verifier that memory access is safe
     struct ethhdr *eth = data;
-    if (data + sizeof(*eth) > data_end)
-        return TC_ACT_OK;
+    if (data + sizeof(*eth) > data_end) return TC_ACT_OK;
 
     // Process only IPv4 packets
-    if (eth->h_proto != bpf_htons(ETH_P_IP))
-        return TC_ACT_OK;
+    if (eth->h_proto != bpf_htons(ETH_P_IP)) return TC_ACT_OK;
 
     // Prove to the eBPF verifier that memory access is safe
     struct iphdr *ip = data + sizeof(*eth);
-    if ((void *)ip + sizeof(*ip) > data_end)
-        return TC_ACT_OK;
+    if ((void *)ip + sizeof(*ip) > data_end) return TC_ACT_OK;
+
+    // IP header length
+    __u32 ip_hdr_len = ip->ihl * 4;
+    if (ip_hdr_len < 20 || ip_hdr_len > 60) return TC_ACT_OK;
 
     // Process only TCP packets
-    if (ip->protocol != IPPROTO_TCP)
-        return TC_ACT_OK;
+    if (ip->protocol != IPPROTO_TCP) return TC_ACT_OK;
 
     // Prove to the eBPF verifier that memory access is safe
-    struct tcphdr *tcp = (void *)ip + sizeof(*ip);
-    if ((void *)tcp + sizeof(*tcp) > data_end)
-        return TC_ACT_OK;
+    struct tcphdr *tcp = (void *)ip + ip_hdr_len;
+    if ((void *)tcp + sizeof(*tcp) > data_end) return TC_ACT_OK;
 
     // Process only SYN packets 
-    if (!tcp->syn || tcp->ack)
-        return TC_ACT_OK;
-
+    if (!tcp->syn || tcp->ack) return TC_ACT_OK;
 
     // Get configuration from map
     __u32 key = 0;
@@ -72,41 +152,137 @@ int spoof_syn_packet(struct __sk_buff *skb) {
     // The verifier requires NULL checks after map lookups
     if (!cfg || !cfg->enabled)
         return TC_ACT_OK;
-        
 
-    // ============================================================================
-    // READ ALL VALUES WHILE POINTERS ARE STILL VALID
-    // (calling bpf_skb_store_bytes modifies skb and invalidates pointers)
-    // ============================================================================
-    __u32 ip_header_len = ip->ihl * 4;
-    
-    __u8 old_ttl = ip->ttl;
-    __u16 old_window = tcp->window;
+    // =====================================================================
+    // 1. PREPARE FOR RESIZE
+    // =====================================================================
+    // Calculate dimensions
+    __u8 old_tcp_hdr_len = tcp->doff * 4;
+    __u8 old_options_len = old_tcp_hdr_len - 20;
+    __u8 new_options_len = 4; // MSS (4 bytes)
 
-    // ============================================================================
-    // CALCULATE ALL OFFSETS
-    // ============================================================================
-    // Values offsets
-    __u32 ttl_off = sizeof(struct ethhdr) + offsetof(struct iphdr, ttl);
-    __u32 window_off = sizeof(struct ethhdr) + ip_header_len + offsetof(struct tcphdr, window);
+    // Calculate delta
+    int len_diff = (int)new_options_len - (int)old_options_len;
 
-    // Checksum offsets
-    __u32 ip_csum_off = sizeof(struct ethhdr) + offsetof(struct iphdr, check);
-    __u32 tcp_csum_off = sizeof(struct ethhdr) + ip_header_len + offsetof(struct tcphdr, check);
+    // Define offsets
+    __u32 ip_offset = sizeof(struct ethhdr);
+    __u32 tcp_offset = ip_offset + ip_hdr_len;
 
-    // ============================================================================
-    // UPDATE ALL VALUES AS PER CONFIGURATION
-    // ============================================================================
+    // Save the TCP fixed header (20 bytes) to stack
+    struct tcphdr tcp_fixed_save;
+    if (bpf_skb_load_bytes(skb, tcp_offset, &tcp_fixed_save, sizeof(tcp_fixed_save)) < 0) {
+        return TC_ACT_SHOT;
+    }
 
-    // TTL
-    bpf_skb_store_bytes(skb, ttl_off, &cfg->ttl_value, 1, 0);
-    bpf_l3_csum_replace(skb, ip_csum_off, (__u16)old_ttl, (__u16)cfg->ttl_value, 2);
+    // =====================================================================
+    // 2. ADJUST ROOM (Create/Remove Gap)
+    // =====================================================================
+    // BPF_ADJ_ROOM_NET: Inserts/removes bytes AFTER IP header (Offset 0 of L4)
+    if (bpf_skb_adjust_room(skb, len_diff, BPF_ADJ_ROOM_NET, BPF_F_ADJ_ROOM_FIXED_GSO) != 0) {
+        return TC_ACT_SHOT;
+    }
 
-    // Window size
+    // =====================================================================
+    // 3. RESTORE HEADERS & INJECT OPTIONS
+    // =====================================================================
+    // Move the TCP fixed header BACK to the start of the L4 region
+    if (bpf_skb_store_bytes(skb, tcp_offset, &tcp_fixed_save, sizeof(tcp_fixed_save), 0) < 0) {
+        return TC_ACT_SHOT;
+    }
+
+    // Write our NEW Options immediately after the TCP fixed header
+    // Offset = tcp_offset + 20 bytes
+    __u8 mss_opt[4] = {
+        0x02, 0x04,                  // Kind=2 (MSS), Len=4
+        cfg->mss_value >> 8,         // Value High
+        cfg->mss_value & 0xFF        // Value Low
+    };
+
+    if (bpf_skb_store_bytes(skb, tcp_offset + 20, mss_opt, sizeof(mss_opt), 0) < 0) {
+        return TC_ACT_SHOT;
+    }
+
+    // =====================================================================
+    // 4. UPDATE FIELDS AS PER CONFIGURATION
+    // =====================================================================
+    // Update TCP Data Offset (doff) to reflect new size (24 bytes = 6 words)
+    __u8 new_doff = (6 << 4); 
+    if (bpf_skb_store_bytes(skb, tcp_offset + 12, &new_doff, 1, 0) < 0) {
+        return TC_ACT_SHOT;
+    }
+
+    // Update TTL (IP header with offset 8)
+    if (bpf_skb_store_bytes(skb, ip_offset + 8, &cfg->ttl_value, 1, 0) < 0) {
+        return TC_ACT_SHOT;
+    }
+
+    // Update Window size
     __u16 new_window = bpf_htons(cfg->window_size);
-    bpf_skb_store_bytes(skb, window_off, &new_window, 2, 0);
-    bpf_l4_csum_replace(skb, tcp_csum_off, old_window, new_window, 2);
+    if (bpf_skb_store_bytes(skb, tcp_offset + 14, &new_window, 2, 0) < 0) {
+        return TC_ACT_SHOT;
+    }
 
+    // Update total length in IP header
+    __u32 tot_len_offset = ip_offset + offsetof(struct iphdr, tot_len);
+    __u16 new_ip_len = bpf_htons(ip_hdr_len + 20 + new_options_len);    // Network byte order
+    if (bpf_skb_store_bytes(skb, tot_len_offset, &new_ip_len, 2, 0) < 0) {
+        return TC_ACT_SHOT;
+    }
+
+    // =====================================================================
+    // RECALCULATE CHECKSUMS
+    // ===================================================================== 
+    // Zero IP Checksum
+    __u16 zero = 0;
+    __u32 ip_csum_offset = sizeof(struct ethhdr) + offsetof(struct iphdr, check);
+    if (bpf_skb_store_bytes(skb, ip_csum_offset, &zero, 2, 0) < 0) {
+        return TC_ACT_SHOT;
+    }
+    
+    // Adjust invalidated pointers after skb adjustment
+    data = (void *)(long)skb->data;
+    data_end = (void *)(long)skb->data_end;
+    ip = data + sizeof(struct ethhdr);
+    if ((void *)ip + sizeof(*ip) > data_end) return TC_ACT_SHOT;
+    
+    // Bounds check IHL
+    __u32 ihl = ip->ihl;
+    if (ihl < 5 || ihl > 15) return TC_ACT_SHOT;
+
+    // Calculate IP Checksum
+    __u16 ip_csum = ip_fast_csum((__u8 *)ip, ip->ihl, data_end);
+    
+    // Store IP Checksum
+    if (bpf_skb_store_bytes(skb, ip_csum_offset, &ip_csum, 2, 0) < 0) {
+        return TC_ACT_SHOT;
+    }
+
+    // Zero TCP Checksum
+    if (bpf_skb_store_bytes(skb, tcp_offset + 16, &zero, 2, 0) < 0) {
+        return TC_ACT_SHOT;
+    }
+
+    // Adjust invalidated pointers after skb adjustment
+    data = (void *)(long)skb->data;
+    data_end = (void *)(long)skb->data_end;
+    ip = data + sizeof(struct ethhdr);
+    if ((void *)ip + sizeof(*ip) > data_end) return TC_ACT_SHOT;
+    tcp = data + tcp_offset;
+    if ((void *)tcp + sizeof(*tcp) > data_end) return TC_ACT_SHOT;
+
+    // Calculate new lengths
+    new_ip_len = bpf_ntohs(ip->tot_len);
+    __u16 new_tcp_len = new_ip_len - ip_hdr_len;
+    
+    // Calculate TCP Checksum
+    __u16 tcp_csum = tcp_checksum(ip, tcp, data_end, new_tcp_len);
+    
+    // Store TCP Checksum
+    if (bpf_skb_store_bytes(skb, tcp_offset + 16, &tcp_csum, 2, 0) < 0) {
+        return TC_ACT_SHOT;
+    }
+    
+    // The modified packet is accepted and transmitted
     return TC_ACT_OK;
 }
 
