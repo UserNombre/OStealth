@@ -18,9 +18,9 @@
 struct os_config {
     __u32 enabled;         // Whether spoofing is enabled
     __u16 mss_value;       // Target MSS value
+    __u16 window_size;     // TCP Window Size
     __u8 ttl_value;        // Target TTL value
     __u8 df_flag;          // Don't Fragment flag
-    __u16 window_size;     // TCP Window Size
 };
 
 struct {
@@ -74,20 +74,38 @@ int spoof_syn_packet(struct __sk_buff *skb) {
         return TC_ACT_OK;
         
 
-    // Modify IP TTL
+    // ============================================================================
+    // READ ALL VALUES WHILE POINTERS ARE STILL VALID
+    // (calling bpf_skb_store_bytes modifies skb and invalidates pointers)
+    // ============================================================================
+    __u32 ip_header_len = ip->ihl * 4;
+    
     __u8 old_ttl = ip->ttl;
-    __u8 new_ttl = cfg->ttl_value;
+    __u16 old_window = tcp->window;
 
-    if (old_ttl != new_ttl) {
-        // Calculate offset to TTL field
-        __u32 ip_off = sizeof(struct ethhdr) + offsetof(struct iphdr, ttl);
-        
-        bpf_skb_store_bytes(skb, ip_off, &new_ttl, 1, 0);
-        
-        // Recalculate IP checksum
-        __u32 csum_off = sizeof(struct ethhdr) + offsetof(struct iphdr, check);
-        bpf_l3_csum_replace(skb, csum_off, (__u16)old_ttl, (__u16)new_ttl, 2);
-    }
+    // ============================================================================
+    // CALCULATE ALL OFFSETS
+    // ============================================================================
+    // Values offsets
+    __u32 ttl_off = sizeof(struct ethhdr) + offsetof(struct iphdr, ttl);
+    __u32 window_off = sizeof(struct ethhdr) + ip_header_len + offsetof(struct tcphdr, window);
+
+    // Checksum offsets
+    __u32 ip_csum_off = sizeof(struct ethhdr) + offsetof(struct iphdr, check);
+    __u32 tcp_csum_off = sizeof(struct ethhdr) + ip_header_len + offsetof(struct tcphdr, check);
+
+    // ============================================================================
+    // UPDATE ALL VALUES AS PER CONFIGURATION
+    // ============================================================================
+
+    // TTL
+    bpf_skb_store_bytes(skb, ttl_off, &cfg->ttl_value, 1, 0);
+    bpf_l3_csum_replace(skb, ip_csum_off, (__u16)old_ttl, (__u16)cfg->ttl_value, 2);
+
+    // Window size
+    __u16 new_window = bpf_htons(cfg->window_size);
+    bpf_skb_store_bytes(skb, window_off, &new_window, 2, 0);
+    bpf_l4_csum_replace(skb, tcp_csum_off, old_window, new_window, 2);
 
     return TC_ACT_OK;
 }

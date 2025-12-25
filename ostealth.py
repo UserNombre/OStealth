@@ -31,14 +31,17 @@ def configure_spoofer(enabled=True, mss=1460, ttl=128, df=1, window=65535):
         return False
     
     # Pack the struct (little-endian)
-    # struct os_config: u32 enabled, u16 mss, u8 ttl, u8 df, u16 window
-    config = struct.pack('<I H B B x x H', 
+    # struct os_config: u32 enabled, u16 mss, u16 window, u8 ttl, u8 df, padding[2]
+    config = struct.pack('<I H H B B x x', 
                         1 if enabled else 0,
                         mss,
+                        window,
                         ttl,
-                        df,
-                        window)
+                        df)
     
+    print(f"[DEBUG] Packed bytes (hex): {config.hex()}")
+    print(f"[DEBUG] Length: {len(config)} bytes")
+
     # Update map using bpftool
     key = struct.pack('<I', 0)  # Key = 0
     
@@ -75,3 +78,4 @@ if __name__ == "__main__":
         print("\n[*] Disabling spoofer...")
         configure_spoofer(enabled=False)
         print("[*] Done!")
+
