@@ -18,10 +18,10 @@ sudo ln -sf /usr/include/aarch64-linux-gnu/asm /usr/include/asm
 ## Compilation
 ```
 # Compile eBPF program to bytecode
-clang -O2 -g -target bpf -c ospoof_ebpf.c -o ospoof_ebpf.o
+clang -O2 -g -target bpf -c ostealth.c -o ostealth.o
 
 # Verify compilation
-llvm-objdump -h ospoof_ebpf.o | grep tc_egress
+llvm-objdump -h ostealth.o | grep tc_egress
 ```
 
 The -O2 optimization is required for the eBPF verifier to accept the program.
@@ -34,7 +34,7 @@ The -O2 optimization is required for the eBPF verifier to accept the program.
 sudo tc qdisc add dev eth0 clsact
 
 sudo tc filter add dev eth0 egress bpf direct-action \
-     obj ospoof_ebpf.o sec tc_egress verbose
+     obj ostealth.o sec tc_egress verbose
 
 # Verify it loaded
 sudo tc filter show dev eth0 egress
