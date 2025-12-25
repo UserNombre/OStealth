@@ -205,8 +205,8 @@ int spoof_syn_packet(struct __sk_buff *skb) {
     // =====================================================================
     // 4. UPDATE FIELDS AS PER CONFIGURATION
     // =====================================================================
-    // Update TCP Data Offset (doff) to reflect new size (24 bytes = 6 words)
-    __u8 new_doff = (6 << 4); 
+    // Update TCP Data Offset (doff) to reflect new size (24 bytes = 6 words) -> TODO UPDATE FOR OPTIONS LENGTH
+    __u8 new_doff = (6 << 4);
     if (bpf_skb_store_bytes(skb, tcp_offset + 12, &new_doff, 1, 0) < 0) {
         return TC_ACT_SHOT;
     }
@@ -268,12 +268,12 @@ int spoof_syn_packet(struct __sk_buff *skb) {
     ip = data + sizeof(struct ethhdr);
     if ((void *)ip + sizeof(*ip) > data_end) return TC_ACT_SHOT;
     tcp = data + tcp_offset;
-    if ((void *)tcp + sizeof(*tcp) > data_end) return TC_ACT_SHOT;
-
+    if ((void *)tcp + sizeof(*tcp) + new_options_len > data_end) return TC_ACT_SHOT;
+    
     // Calculate new lengths
     new_ip_len = bpf_ntohs(ip->tot_len);
     __u16 new_tcp_len = new_ip_len - ip_hdr_len;
-    
+
     // Calculate TCP Checksum
     __u16 tcp_csum = tcp_checksum(ip, tcp, data_end, new_tcp_len);
     
