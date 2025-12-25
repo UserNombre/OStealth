@@ -39,9 +39,6 @@ def configure_spoofer(enabled=True, mss=1460, ttl=128, df=1, window=65535):
                         ttl,
                         df)
     
-    print(f"[DEBUG] Packed bytes (hex): {config.hex()}")
-    print(f"[DEBUG] Length: {len(config)} bytes")
-
     # Update map using bpftool
     key = struct.pack('<I', 0)  # Key = 0
     
