@@ -16,11 +16,14 @@
 
 // Configuration map - userspace sets these values
 struct os_config {
-    __u32 enabled;         // Whether spoofing is enabled
-    __u16 mss_value;       // Target MSS value
-    __u16 window_size;     // TCP Window Size
-    __u8 ttl_value;        // Target TTL value
-    __u8 df_flag;          // Don't Fragment flag
+    __u32 enabled;          // Whether spoofing is enabled
+    __u16 mss_value;        // Target MSS value
+    __u16 window_size;      // TCP Window Size
+    __u8 ttl_value;         // Target TTL value
+    __u8 df_flag;           // Don't Fragment flag
+    // TODO: implement generic options code
+    //__u8 options_size      // Size of TCP options
+    //__u8[40] options       // TCP options
 };
 
 struct {
@@ -159,7 +162,7 @@ int spoof_syn_packet(struct __sk_buff *skb) {
     // Calculate dimensions
     __u8 old_tcp_hdr_len = tcp->doff * 4;
     __u8 old_options_len = old_tcp_hdr_len - 20;
-    __u8 new_options_len = 4; // MSS (4 bytes)
+    __u8 new_options_len = 8; // MSS (4 bytes)
 
     // Calculate delta
     int len_diff = (int)new_options_len - (int)old_options_len;
@@ -190,15 +193,19 @@ int spoof_syn_packet(struct __sk_buff *skb) {
         return TC_ACT_SHOT;
     }
 
+    // TODO: make generic, currently hard-coded for Windows XP
     // Write our NEW Options immediately after the TCP fixed header
     // Offset = tcp_offset + 20 bytes
-    __u8 mss_opt[4] = {
-        0x02, 0x04,                  // Kind=2 (MSS), Len=4
-        cfg->mss_value >> 8,         // Value High
-        cfg->mss_value & 0xFF        // Value Low
+    __u8 tcp_opts[8] = {
+        0x02, 0x04,                 // Kind=2 (MSS), Len=4
+        cfg->mss_value >> 8,        // Value High
+        cfg->mss_value & 0xFF,      // Value Low
+        0x01,                       // Kind=1 (NOP)
+        0x01,                       // Kind=1 (NOP)
+        0x04, 0x02,                 // Kind=4 (SOK), Len=2
     };
 
-    if (bpf_skb_store_bytes(skb, tcp_offset + 20, mss_opt, sizeof(mss_opt), 0) < 0) {
+    if (bpf_skb_store_bytes(skb, tcp_offset + 20, tcp_opts, sizeof(tcp_opts), 0) < 0) {
         return TC_ACT_SHOT;
     }
 
@@ -206,7 +213,7 @@ int spoof_syn_packet(struct __sk_buff *skb) {
     // 4. UPDATE FIELDS AS PER CONFIGURATION
     // =====================================================================
     // Update TCP Data Offset (doff) to reflect new size (24 bytes = 6 words) -> TODO UPDATE FOR OPTIONS LENGTH
-    __u8 new_doff = (6 << 4);
+    __u8 new_doff = (7 << 4);
     if (bpf_skb_store_bytes(skb, tcp_offset + 12, &new_doff, 1, 0) < 0) {
         return TC_ACT_SHOT;
     }
