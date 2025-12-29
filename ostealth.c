@@ -16,14 +16,12 @@
 
 // Configuration map - userspace sets these values
 struct os_config {
-    __u32 enabled;          // Whether spoofing is enabled
     __u16 mss_value;        // Target MSS value
     __u16 window_size;      // TCP Window Size
     __u8 ttl_value;         // Target TTL value
     __u8 df_flag;           // Don't Fragment flag
-    // TODO: implement generic options code
-    //__u8 options_size      // Size of TCP options
-    //__u8[40] options       // TCP options
+    __u8 options_size;      // Size of TCP options
+    __u8 options[40];       // TCP options
 };
 
 struct {
@@ -153,19 +151,19 @@ int spoof_syn_packet(struct __sk_buff *skb) {
     __u32 key = 0;
     struct os_config *cfg = bpf_map_lookup_elem(&config_map, &key);
     // The verifier requires NULL checks after map lookups
-    if (!cfg || !cfg->enabled)
+    if (!cfg)
         return TC_ACT_OK;
 
     // =====================================================================
     // 1. PREPARE FOR RESIZE
     // =====================================================================
     // Calculate dimensions
-    __u8 old_tcp_hdr_len = tcp->doff * 4;
-    __u8 old_options_len = old_tcp_hdr_len - 20;
-    __u8 new_options_len = 8; // MSS (4 bytes)
+    // __u8 old_tcp_hdr_len = tcp->doff * 4;
+    // __u8 old_options_len = old_tcp_hdr_len - 20;
+    // __u8 new_options_len = 8; // MSS (4 bytes)
 
     // Calculate delta
-    int len_diff = (int)new_options_len - (int)old_options_len;
+    int len_diff = (int)cfg->options_size - (int)tcp->doff * 4 - 20;
 
     // Define offsets
     __u32 ip_offset = sizeof(struct ethhdr);
@@ -196,16 +194,16 @@ int spoof_syn_packet(struct __sk_buff *skb) {
     // TODO: make generic, currently hard-coded for Windows XP
     // Write our NEW Options immediately after the TCP fixed header
     // Offset = tcp_offset + 20 bytes
-    __u8 tcp_opts[8] = {
-        0x02, 0x04,                 // Kind=2 (MSS), Len=4
-        cfg->mss_value >> 8,        // Value High
-        cfg->mss_value & 0xFF,      // Value Low
-        0x01,                       // Kind=1 (NOP)
-        0x01,                       // Kind=1 (NOP)
-        0x04, 0x02,                 // Kind=4 (SOK), Len=2
-    };
+    // __u8 tcp_opts[8] = {
+    //     0x02, 0x04,                 // Kind=2 (MSS), Len=4
+    //     cfg->mss_value >> 8,        // Value High
+    //     cfg->mss_value & 0xFF,      // Value Low
+    //     0x01,                       // Kind=1 (NOP)
+    //     0x01,                       // Kind=1 (NOP)
+    //     0x04, 0x02,                 // Kind=4 (SOK), Len=2
+    // };
 
-    if (bpf_skb_store_bytes(skb, tcp_offset + 20, tcp_opts, sizeof(tcp_opts), 0) < 0) {
+    if (bpf_skb_store_bytes(skb, tcp_offset + 20, cfg->options, cfg->options_size, 0) < 0) {
         return TC_ACT_SHOT;
     }
 
@@ -213,7 +211,8 @@ int spoof_syn_packet(struct __sk_buff *skb) {
     // 4. UPDATE FIELDS AS PER CONFIGURATION
     // =====================================================================
     // Update TCP Data Offset (doff) to reflect new size (24 bytes = 6 words) -> TODO UPDATE FOR OPTIONS LENGTH
-    __u8 new_doff = (7 << 4);
+    // WARNING: may be wrong (needs to be multiple of 32 bits)
+    __u8 new_doff = (20 + cfg->options_size) / 4;
     if (bpf_skb_store_bytes(skb, tcp_offset + 12, &new_doff, 1, 0) < 0) {
         return TC_ACT_SHOT;
     }
@@ -231,7 +230,7 @@ int spoof_syn_packet(struct __sk_buff *skb) {
 
     // Update total length in IP header
     __u32 tot_len_offset = ip_offset + offsetof(struct iphdr, tot_len);
-    __u16 new_ip_len = bpf_htons(ip_hdr_len + 20 + new_options_len);    // Network byte order
+    __u16 new_ip_len = bpf_htons(ip_hdr_len + 20 + cfg->options_size);    // Network byte order
     if (bpf_skb_store_bytes(skb, tot_len_offset, &new_ip_len, 2, 0) < 0) {
         return TC_ACT_SHOT;
     }
@@ -275,7 +274,7 @@ int spoof_syn_packet(struct __sk_buff *skb) {
     ip = data + sizeof(struct ethhdr);
     if ((void *)ip + sizeof(*ip) > data_end) return TC_ACT_SHOT;
     tcp = data + tcp_offset;
-    if ((void *)tcp + sizeof(*tcp) + new_options_len > data_end) return TC_ACT_SHOT;
+    if ((void *)tcp + sizeof(*tcp) + cfg->options_size > data_end) return TC_ACT_SHOT;
     
     // Calculate new lengths
     new_ip_len = bpf_ntohs(ip->tot_len);
