@@ -16,7 +16,6 @@
 
 // Configuration map - userspace sets these values
 struct os_config {
-    __u16 mss_value;        // Target MSS value
     __u16 window_size;      // TCP Window Size
     __u8 ttl_value;         // Target TTL value
     __u8 df_flag;           // Don't Fragment flag
@@ -163,7 +162,7 @@ int spoof_syn_packet(struct __sk_buff *skb) {
     // __u8 new_options_len = 8; // MSS (4 bytes)
 
     // Calculate delta
-    int len_diff = (int)cfg->options_size - (int)tcp->doff * 4 - 20;
+    int len_diff = (int)cfg->options_size - ((int)tcp->doff * 4 - 20);
 
     // Define offsets
     __u32 ip_offset = sizeof(struct ethhdr);
@@ -203,16 +202,23 @@ int spoof_syn_packet(struct __sk_buff *skb) {
     //     0x04, 0x02,                 // Kind=4 (SOK), Len=2
     // };
 
-    if (bpf_skb_store_bytes(skb, tcp_offset + 20, cfg->options, cfg->options_size, 0) < 0) {
+    // Mystic verifier stuff
+    if (cfg->options_size > 40) {
         return TC_ACT_SHOT;
+    }
+
+    if (0 < cfg->options_size) {
+        if (bpf_skb_store_bytes(skb, tcp_offset + 20, cfg->options, cfg->options_size, 0) < 0) {
+            return TC_ACT_SHOT;
+        }
     }
 
     // =====================================================================
     // 4. UPDATE FIELDS AS PER CONFIGURATION
     // =====================================================================
-    // Update TCP Data Offset (doff) to reflect new size (24 bytes = 6 words) -> TODO UPDATE FOR OPTIONS LENGTH
+    // Update TCP Data Offset (doff) to reflect new size
     // WARNING: may be wrong (needs to be multiple of 32 bits)
-    __u8 new_doff = (20 + cfg->options_size) / 4;
+    __u8 new_doff = ((20 + cfg->options_size) / 4) << 4;
     if (bpf_skb_store_bytes(skb, tcp_offset + 12, &new_doff, 1, 0) < 0) {
         return TC_ACT_SHOT;
     }

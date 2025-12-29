@@ -16,7 +16,6 @@ import subprocess
 
 class TCPRequestConfig(ctypes.Structure):
     _fields_ = [
-        ("mss_value", ctypes.c_uint16),
         ("window_size", ctypes.c_uint16),
         ("ttl_value", ctypes.c_uint8),
         ("df_flag", ctypes.c_uint8),
@@ -27,12 +26,11 @@ class TCPRequestConfig(ctypes.Structure):
 selectable_fingerprints = {
     'windowsXP':[
         TCPRequestConfig(
-            1460,
-            65535,
-            128,
-            1,
-            1 + 1 + 2,
-            (ctypes.c_uint8 * 40)(1, 1, 4, 2)
+            window_size=65535,
+            ttl_value=128,
+            df_flag=1,
+            options_size=4 + 1 + 1 + 2, # MSS + NOP + NOP + SOK
+            options=(ctypes.c_uint8 * 40)(2, 4, 1460 >> 8, 1460 & 0xFF, 1, 1, 4, 2)
         )
     ]
 }
@@ -55,17 +53,8 @@ def configure_spoofer(enabled=True, mss=1460, ttl=128, df=1, window=65535):
         print("[-] Error: config_map not found. Is the eBPF program loaded?")
         return False
     
-    # Pack the struct (little-endian)
-    # struct os_config: u32 enabled, u16 mss, u16 window, u8 ttl, u8 df, padding[2]
-    # config = struct.pack('<I H H B B x x', 
-    #                     selectable_fingerprints['windowsXP'][0].enabled,
-    #                     selectable_fingerprints['windowsXP'][0].mss_value,
-    #                     selectable_fingerprints['windowsXP'][0].window_size,
-    #                     selectable_fingerprints['windowsXP'][0].ttl_value,
-    #                     selectable_fingerprints['windowsXP'][0].df_flag)
-    config = bytes(selectable_fingerprints['windowsXP'][0])
-    
     # Update map using bpftool
+    config = bytes(selectable_fingerprints['windowsXP'][0])
     key = struct.pack('<I', 0)  # Key = 0
     
     cmd = ['bpftool', 'map', 'update', 'id', str(map_id),
