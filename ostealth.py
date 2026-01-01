@@ -22,7 +22,8 @@ signatures = {
     "Windows7": "*:128:0:*:8192,0:mss,nop,nop,sok:df,id+:0",
     "FreeBSD": "*:64:0:*:65535,6:mss,nop,ws,sok,ts:df,id+:0",
     "OpenBSD": "*:64:0:*:16384,3:mss,nop,nop,sok,nop,ws,nop,nop,ts:df,id+:0",
-    "Solaris": "*:64:0:*:32850,1:nop,ws,nop,nop,ts,nop,nop,sok,mss:df,id+:0"
+    "Solaris": "*:64:0:*:32850,1:nop,ws,nop,nop,ts,nop,nop,sok,mss:df,id+:0",
+    "Linux": "*:64:0:*:mss*20,10:mss,sok,ts,nop,ws:df,id+:0"
 }
 
 default_mss = {
@@ -30,7 +31,8 @@ default_mss = {
     "Windows7": 1460,
     "FreeBSD": 1460,
     "OpenBSD": 1460,
-    "Solaris": 1460
+    "Solaris": 1460,
+    "Linux": 1460
 }
 
 @dataclass
@@ -184,7 +186,7 @@ if __name__ == "__main__":
     
     if len(sys.argv) < 2:
         print('Usage: sudo python3 ostealth.py system')
-        print('\nSupported systems are: WindowsXP, Windows7, WindowsNT, FreeBSD, OpenBSD, Solaris')
+        print('\nSupported systems are: WindowsXP, Windows7, FreeBSD, OpenBSD, Solaris, Linux')
         exit(1)
 
     taken_system = sys.argv[1]
