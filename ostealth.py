@@ -20,8 +20,7 @@ from enum import Enum
 signatures = {
     "WindowsXP": "*:128:0:*:16384,0:mss,nop,nop,sok:df,id+:0",
     "Windows7": "*:128:0:*:8192,0:mss,nop,nop,sok:df,id+:0",
-    "WindowsNT": "*:128:0:*:16384,*:mss,nop,nop,sok:df,id+:0",
-    "FreeBSD": "*:64:0:*:65535,*:mss,nop,ws,sok,ts:df,id+:0",
+    "FreeBSD": "*:64:0:*:65535,6:mss,nop,ws,sok,ts:df,id+:0",
     "OpenBSD": "*:64:0:*:16384,3:mss,nop,nop,sok,nop,ws,nop,nop,ts:df,id+:0",
     "Solaris": "*:64:0:*:32850,1:nop,ws,nop,nop,ts,nop,nop,sok,mss:df,id+:0"
 }
@@ -29,7 +28,6 @@ signatures = {
 default_mss = {
     "WindowsXP": 1460,
     "Windows7": 1460,
-    "WindowsNT": 1460,
     "FreeBSD": 1460,
     "OpenBSD": 1460,
     "Solaris": 1460
@@ -74,6 +72,7 @@ class TCPOptionP0FFactory():
         elif option_type == 'mss':
             option_value = [(input1 >> (i * 8)) & 0xFF for i in range(2)]
         elif option_type == 'ws':
+            print(option_type)
             option_value = [input1 & 0xFF]
 
         return TCPOption(
@@ -92,6 +91,7 @@ class TCPRequestConfigFactory():
 
         ttl = int(splits[1])
         window_size = int(splits[4].split(',')[0])
+        window_scale = int(splits[4].split(',')[1])
 
         signature_options = splits[5].split(',')
         selected_options = []
@@ -99,6 +99,8 @@ class TCPRequestConfigFactory():
         for s in signature_options:
             if s == 'mss':
                 selected_options.append(self.tcpfactory.str_to_option(s, mss, None))
+            elif s == 'ws':
+                selected_options.append(self.tcpfactory.str_to_option(s, window_scale, None))
             elif s == 'ts':
                 selected_options.append(self.tcpfactory.str_to_option(s, random.randint(0, 2147483647), 0))
             else:
