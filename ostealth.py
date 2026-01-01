@@ -7,7 +7,6 @@ eBPF OS Fingerprint Spoofer - Control Plane
 Loads and configures the eBPF TC egress program to modify outgoing SYN packets
 '''
 
-
 import sys
 import time
 import random
@@ -18,8 +17,23 @@ import subprocess
 from dataclasses import dataclass
 from enum import Enum
 
-temporary_signature = '*:128:0:*:16384,*:mss,nop,nop,sok:df,id+:0'
-default_mss = {"windowsXP": 1460}
+signatures = {
+    "WindowsXP": "*:128:0:*:16384,0:mss,nop,nop,sok:df,id+:0",
+    "Windows7": "*:128:0:*:8192,0:mss,nop,nop,sok:df,id+:0",
+    "WindowsNT": "*:128:0:*:16384,*:mss,nop,nop,sok:df,id+:0",
+    "FreeBSD": "*:64:0:*:65535,*:mss,nop,ws,sok,ts:df,id+:0",
+    "OpenBSD": "*:64:0:*:16384,3:mss,nop,nop,sok,nop,ws,nop,nop,ts:df,id+:0",
+    "Solaris": "*:64:0:*:32850,1:nop,ws,nop,nop,ts,nop,nop,sok,mss:df,id+:0"
+}
+
+default_mss = {
+    "WindowsXP": 1460,
+    "Windows7": 1460,
+    "WindowsNT": 1460,
+    "FreeBSD": 1460,
+    "OpenBSD": 1460,
+    "Solaris": 1460
+}
 
 @dataclass
 class TCPOption():
@@ -73,7 +87,7 @@ class TCPRequestConfigFactory():
     def __init__(self):
         self.tcpfactory = TCPOptionP0FFactory()
 
-    def signature_to_tcpr(self, fooling_as: str, signature: str) -> TCPRequestConfig:
+    def signature_to_tcpr(self, mss: int, signature: str) -> TCPRequestConfig:
         splits = signature.split(':')
 
         ttl = int(splits[1])
@@ -84,7 +98,7 @@ class TCPRequestConfigFactory():
         total_size = 0
         for s in signature_options:
             if s == 'mss':
-                selected_options.append(self.tcpfactory.str_to_option(s, default_mss[fooling_as], None))
+                selected_options.append(self.tcpfactory.str_to_option(s, mss, None))
             elif s == 'ts':
                 selected_options.append(self.tcpfactory.str_to_option(s, random.randint(0, 2147483647), 0))
             else:
@@ -124,28 +138,7 @@ class TCPRequestConfig(ctypes.Structure):
         ("options", ctypes.c_uint8 * 40),
     ]
 
-# selectable_fingerprints = {
-#     'windowsXP':[
-#         TCPRequestConfig(
-#             window_size=65535,
-#             ttl_value=128,
-#             df_flag=1,
-#             options_size=4 + 1 + 1 + 2, # MSS + NOP + NOP + SOK
-#             options=(ctypes.c_uint8 * 40)(2, 4, 1460 >> 8, 1460 & 0xFF, 1, 1, 4, 2)
-#         )
-#     ],
-#     'MacOS_X_10.x':[
-#         TCPRequestConfig(
-#             window_size=65535,
-#             ttl_value=64,
-#             df_flag=1,
-#             options_size=4 + 1 + 1 + 2, # MSS + NOP + NOP + SOK
-#             options=(ctypes.c_uint8 * 40)(2, 4, 1500 >> 8, 1500 & 0xFF, 1, 1, 4, 2)
-#         )
-#     ]
-# }
-
-def find_map_id(map_name="config_map"):
+def find_map_id(map_name="config_map": str) -> str | None:
     """Find the map ID by name"""
     result = subprocess.run(['bpftool', 'map', 'list'], 
                           capture_output=True, text=True)
@@ -156,7 +149,7 @@ def find_map_id(map_name="config_map"):
             return int(map_id)
     return None
 
-def configure_spoofer(enabled=True, mss=1460, ttl=128, df=1, window=65535):
+def configure_spoofer(system_configuration: TCPRequestConfig) -> bool:
     """Configure OS spoofing parameters"""
     map_id = find_map_id()
     if not map_id:
@@ -164,7 +157,7 @@ def configure_spoofer(enabled=True, mss=1460, ttl=128, df=1, window=65535):
         return False
     
     # Update map using bpftool
-    config = bytes(TCPRequestConfigFactory().signature_to_tcpr('windowsXP', temporary_signature))
+    config = bytes(system_configuration)
     key = struct.pack('<I', 0)  # Key = 0
     
     cmd = ['bpftool', 'map', 'update', 'id', str(map_id),
@@ -186,15 +179,15 @@ def configure_spoofer(enabled=True, mss=1460, ttl=128, df=1, window=65535):
 
 if __name__ == "__main__":
     
-    # Example: Spoof as Windows (TTL=128, Window=65535)
-    configure_spoofer(enabled=True, mss=1460, ttl=128, df=1, window=65535)
-    
-    print("\n[*] Press Ctrl+C to disable...")
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("\n[*] Disabling spoofer...")
-        configure_spoofer(enabled=False)
-        print("[*] Done!")
+    if len(sys.argv) < 2:
+        print('Usage: sudo python3 ostealth.py system')
+        print('\nSupported systems are: WindowsXP, Windows7, WindowsNT, FreeBSD, OpenBSD, Solaris')
+        exit(1)
+
+    taken_system = sys.argv[1]
+
+    config_factory = TCPRequestConfigFactory()
+    system_config = config_factory.signature_to_tcpr(default_mss[taken_system], taken_system)
+
+    configure_spoofer(system_config)
 
