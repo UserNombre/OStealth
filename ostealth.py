@@ -138,7 +138,7 @@ class TCPRequestConfig(ctypes.Structure):
         ("options", ctypes.c_uint8 * 40),
     ]
 
-def find_map_id(map_name="config_map": str) -> str | None:
+def find_map_id(map_name ="config_map"):
     """Find the map ID by name"""
     result = subprocess.run(['bpftool', 'map', 'list'], 
                           capture_output=True, text=True)
