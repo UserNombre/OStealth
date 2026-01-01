@@ -23,7 +23,7 @@ signatures = {
     "FreeBSD": "*:64:0:*:65535,6:mss,nop,ws,sok,ts:df,id+:0",
     "OpenBSD": "*:64:0:*:16384,3:mss,nop,nop,sok,nop,ws,nop,nop,ts:df,id+:0",
     "Solaris": "*:64:0:*:32850,1:nop,ws,nop,nop,ts,nop,nop,sok,mss:df,id+:0",
-    "Linux": "*:64:0:*:mss*20,10:mss,sok,ts,nop,ws:df,id+:0"
+    "Linux": "*:64:0:*:29200,10:mss,sok,ts,nop,ws:df,id+:0"
 }
 
 default_mss = {
