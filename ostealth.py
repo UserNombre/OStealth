@@ -149,7 +149,7 @@ def find_map_id(map_name ="config_map"):
             return int(map_id)
     return None
 
-def configure_spoofer(system_configuration: TCPRequestConfig) -> bool:
+def configure_spoofer(system_configuration: TCPRequestConfig, mss: int) -> bool:
     """Configure OS spoofing parameters"""
     map_id = find_map_id()
     if not map_id:
@@ -167,11 +167,12 @@ def configure_spoofer(system_configuration: TCPRequestConfig) -> bool:
     result = subprocess.run(cmd, capture_output=True)
     
     if result.returncode == 0:
+
         print(f"[+] Configuration applied to map ID {map_id}:")
         print(f"    MSS: {mss}")
-        print(f"    TTL: {ttl}")
-        print(f"    DF: {df}")
-        print(f"    Window: {window}")
+        print(f"    TTL: {system_configuration.ttl_value}")
+        print(f"    DF: {system_configuration.df_flag}")
+        print(f"    Window: {system_configuration.window_size}")
         return True
     else:
         print(f"[-] Error updating map: {result.stderr.decode()}")
@@ -189,5 +190,5 @@ if __name__ == "__main__":
     config_factory = TCPRequestConfigFactory()
     system_config = config_factory.signature_to_tcpr(default_mss[taken_system], signatures[taken_system])
 
-    configure_spoofer(system_config)
+    configure_spoofer(system_config, default_mss[taken_system])
 
