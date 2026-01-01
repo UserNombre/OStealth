@@ -187,7 +187,7 @@ if __name__ == "__main__":
     taken_system = sys.argv[1]
 
     config_factory = TCPRequestConfigFactory()
-    system_config = config_factory.signature_to_tcpr(default_mss[taken_system], taken_system)
+    system_config = config_factory.signature_to_tcpr(default_mss[taken_system], signatures[taken_system])
 
     configure_spoofer(system_config)
 
