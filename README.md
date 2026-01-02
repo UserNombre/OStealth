@@ -59,3 +59,29 @@ sudo tc qdisc del dev eth0 clsact
 ## License
 GPL (required for eBPF helper functions)
 
+## AI
+
+In order to run all the modules for the AI part, the user needs to install all the requirements with the following commanda.
+
+```
+pip install -r requirements.txt
+```
+
+For the modules it is a easy command. First go to the folder modeling/ in your computer and run:
+
+```
+python3 train.py
+```
+For the training part.
+
+```
+python3 validation.py
+```
+
+For the validation part.
+
+```
+sudo python3 predict.py iface
+```
+In the iface replaced with interface you want to listen to eth0 in Linex and Windows or en0 for MACOS.
+
