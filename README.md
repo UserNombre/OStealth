@@ -84,4 +84,11 @@ For the validation part.
 sudo python3 predict.py iface
 ```
 In the iface replaced with interface you want to listen to eth0 in Linex and Windows or en0 for MACOS.
+ sudo ./generate_traffic_realistic_scapy_no_nmap.sh 192.168.1.1 eth0 60
 
+
+sudo nmap -O --osscan-guess -Pn -n -F 192.168.0.1
+
+
+[[1 0]] equal fingerprint
+[[0 1]] equal no fingerprint
