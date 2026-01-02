@@ -6,7 +6,7 @@ from sklearn.preprocessing import LabelEncoder
 import pickle
 import numpy as np
 
-data = pd.read_csv('./processed_traffic/live_tcp_20251230_141940.csv')
+data = pd.read_csv('./data/train.csv')
 
 X = data[['tcp.srcport', 'tcp.dstport', 'tcp.flags', 'tcp.flags_numeric', 'tcp.window_size_value']]
 y = data[['type_f', 'type_n']]
