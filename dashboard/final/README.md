@@ -72,7 +72,14 @@ nc -lvp 1234
 ```bash
 nc <OSTEALTH_MACHINE_IP> 1234
 ```
-
+## 4. CURL TCP for other SO
+**Remote machine**
+mkdir -p ~/web && echo "WEB de B OK" > ~/web/index.html 
+cd ~/web 
+python3 -m http.server 11080 --bind 0.0.0.0
+**On Stealth machine**
+curl http://localhost:11080/
+url http://localhost:11080/
 Inspect traffic using **p0f** to verify OS fingerprint modification.
 
 ---
