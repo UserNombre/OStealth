@@ -59,7 +59,7 @@ streamlit run app.py
 
 ---
 
-## 3️⃣ Remote Machine Demo
+## 3️⃣1️ Remote Machine Demo
 
 ### 📡 TCP Traffic Generation (Netcat)
 
@@ -72,14 +72,22 @@ nc -lvp 1234
 ```bash
 nc <OSTEALTH_MACHINE_IP> 1234
 ```
-## 4. CURL TCP for other SO
+### 🔬 CURL TCP for other SO
+
+Due to SYN force packages we need to do curl instead of netcat to see the so.
+
 **Remote machine**
+```bash
 mkdir -p ~/web && echo "WEB de B OK" > ~/web/index.html 
 cd ~/web 
 python3 -m http.server 11080 --bind 0.0.0.0
+```
+
 **On Stealth machine**
+
+```bash
 curl http://localhost:11080/
 url http://localhost:11080/
 Inspect traffic using **p0f** to verify OS fingerprint modification.
-
+```
 ---
