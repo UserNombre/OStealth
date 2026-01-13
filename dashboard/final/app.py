@@ -271,7 +271,7 @@ def main():
         # Define log path in dashboard/final/ as requested
         # User requested "inspection.log"
         # Using FULL PATHS as per user request/environment
-        live_log_path_str = "/home/kali/OStealth/dashboard/final/inspection.log"
+        live_log_path_str = os.path.abspath("inspection.log")
         live_log_path = Path(live_log_path_str) # Still use Path obj for local checks if possible, though checks might fail if path is purely remote/linux specific but runs on same machine.
         # Assuming we are running ON the kali machine, Path(str) works.
         
@@ -284,8 +284,8 @@ def main():
                 kill_process("predict.py") # Ensure clean start
                 
                 # Paths
-                work_dir = "/home/kali/OStealth/modeling"
-                venv_python = "/home/kali/OStealth/dashboard/final/venv/bin/python3"
+                work_dir = "../../modeling"
+                venv_python = "../venv/bin/python3"
                 cmd_predict = [venv_python, "-u", "predict.py", "eth0"]
                 
                 # Clear old log
