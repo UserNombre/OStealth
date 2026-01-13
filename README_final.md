@@ -13,7 +13,7 @@ This project is composed of three independent but complementary components, desi
 ## 📌 Recommended Deployment Flow
 
 1. Install and run OStealth
-2. Setup virtual environment: `cd ~/OStealth/dashboard/final/ && python3 -m venv venv && source venv/bin/activate`
+2. Setup virtual environment: `cd ~/OStealth/dashboard/final/ && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt`
 3. Train and execute the AI module
 4. Deploy the application (dashboard)
 5. Run practical demonstrations (curl, nmap, traffic generation)
@@ -68,7 +68,11 @@ sudo tc qdisc del dev eth0 clsact
 
 ## 2️⃣ Virtual Environment Setup (Required before AI Module)
 
-⚠️ **Important:** The virtual environment must be created inside `~/OStealth/dashboard/final/` as this directory contains the Streamlit application code. This same environment needs the AI module dependencies.
+⚠️ **Critical:** The virtual environment **must** be created inside `~/OStealth/dashboard/final/` because:
+- The Streamlit application (`app.py`) contains hardcoded absolute paths to this location
+- The dashboard references: `/home/kali/OStealth/dashboard/final/venv/bin/python3`
+- The AI module and dashboard share dependencies and need to access the same models
+- Changing this location will break the application's functionality
 ```bash
 # Navigate to dashboard directory
 cd ~/OStealth/dashboard/final/
@@ -91,6 +95,9 @@ This module is independent from OStealth. Its purpose is to detect active OS fin
 
 ### Train and validate model
 ```bash
+# Ensure venv is activated
+source ~/OStealth/dashboard/final/venv/bin/activate
+
 # Train model (from modeling/ directory)
 cd ~/OStealth/modeling/
 python3 train.py
@@ -98,6 +105,8 @@ python3 train.py
 # Validate model
 python3 validation.py
 
+# Run real-time prediction (replace iface with eth0, en0, etc.)
+sudo python3 predict.py iface
 ```
 
 **Output interpretation:**
@@ -121,6 +130,8 @@ source venv/bin/activate
 # Run application
 streamlit run app.py
 ```
+
+The dashboard will be accessible at `http://localhost:8501`
 
 ---
 
@@ -159,3 +170,7 @@ sudo nmap -O --osscan-guess -Pn -n -F 192.168.0.1
 ```
 
 ---
+
+## 📜 License
+
+GPL – required for the use of eBPF helper functions.
