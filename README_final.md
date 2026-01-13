@@ -52,9 +52,6 @@ sudo tc filter add dev eth0 egress bpf direct-action \
 
 # Verify installation
 sudo tc filter show dev eth0 egress
-
-# Configure runtime spoofing
-sudo python3 ostealth.py eth0
 ```
 
 ### Unload OStealth
