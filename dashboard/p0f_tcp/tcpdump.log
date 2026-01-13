@@ -1,8 +1,0 @@
-1767112534.007955 IP (tos 0x0, id 51929, offset 0, flags [DF], proto TCP (6), length 40)
-    10.0.2.117.49204 > 142.251.209.74.443: Flags [S], cksum 0x3bf5 (correct), seq 1962135631, win 0, length 0
-1767112534.264075 IP (tos 0x0, id 56374, offset 0, flags [DF], proto TCP (6), length 40)
-    10.0.2.117.49216 > 142.251.209.74.443: Flags [S], cksum 0x7082 (correct), seq 612756516, win 0, length 0
-1767112562.251519 IP (tos 0x0, ttl 63, id 63274, offset 0, flags [DF], proto TCP (6), length 60)
-    10.0.2.1.56630 > 10.0.2.117.1234: Flags [S], cksum 0x4159 (correct), seq 2708858566, win 64240, options [mss 1460,sackOK,TS val 2000032197 ecr 0,nop,wscale 7], length 0
-1767112562.251544 IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
-    10.0.2.117.1234 > 10.0.2.1.56630: Flags [R.], cksum 0x2d15 (correct), seq 0, ack 2708858567, win 0, length 0
