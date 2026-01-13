@@ -47,15 +47,37 @@ Attempting to run this on other distributions (Ubuntu, Fedora, macOS, Windows) w
 ## 📌 Recommended Deployment Flow
 
 1. Clone repository to `/home/kali/OStealth/`
-2. Install and run OStealth (eBPF module)
-3. Setup Python virtual environment in `/home/kali/OStealth/dashboard/final/`
+2. Setup Python virtual environment in `/home/kali/OStealth/dashboard/final/`
+3. Install and run OStealth (eBPF module)
 4. Train and execute the AI module
 5. Deploy the application (dashboard)
 6. Run practical demonstrations (curl, nmap, traffic generation)
-
+   
 ---
 
-## 1️⃣ OStealth Installation (Mandatory First Step)
+## 1️⃣ Virtual Environment Setup (Required before AI Module)
+
+⚠️ **Critical:** The virtual environment **must** be created inside `/home/kali/OStealth/dashboard/final/` because:
+- The Streamlit application (`app.py`) contains hardcoded absolute paths to this location.
+- The dashboard references: `/home/kali/OStealth/dashboard/final/venv/bin/python3`.
+- The AI module and dashboard share dependencies and need to access the same models.
+- This path consistency is required due to the complex interaction between eBPF, sudo, venv, and Streamlit.
+
+```bash
+# Navigate to dashboard directory
+cd /home/kali/OStealth/dashboard/final/
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install all dependencies (dashboard + AI module)
+pip install -r requirements.txt
+```
+---
+**Note:** Keep this virtual environment activated for all subsequent Python operations (AI training and dashboard execution).
+
+## 2️⃣ OStealth Installation (Mandatory First Step)
 
 OStealth is a kernel-space eBPF tool that modifies outgoing TCP SYN packets in real time to evade passive OS fingerprinting performed by p0f.
 
@@ -65,7 +87,7 @@ OStealth is a kernel-space eBPF tool that modifies outgoing TCP SYN packets in r
 ```bash
 # Install required packages
 sudo apt update
-sudo apt install -y clang llvm libbpf-dev iproute2 tcpdump bpftool
+sudo apt install -y clang llvm libbpf-dev iproute2 tcpdump bpftool p0f
 
 # ARM64 Fix (Mac M1/M2 virtual machines only)
 sudo ln -sf /usr/include/aarch64-linux-gnu/asm /usr/include/asm
@@ -108,31 +130,6 @@ sudo python3 ostealth.py WindowsXP
 sudo tc filter del dev eth0 egress
 sudo tc qdisc del dev eth0 clsact
 ```
-
----
-
-## 2️⃣ Virtual Environment Setup (Required before AI Module)
-
-⚠️ **Critical:** The virtual environment **must** be created inside `/home/kali/OStealth/dashboard/final/` because:
-- The Streamlit application (`app.py`) contains hardcoded absolute paths to this location.
-- The dashboard references: `/home/kali/OStealth/dashboard/final/venv/bin/python3`.
-- The AI module and dashboard share dependencies and need to access the same models.
-- This path consistency is required due to the complex interaction between eBPF, sudo, venv, and Streamlit.
-
-```bash
-# Navigate to dashboard directory
-cd /home/kali/OStealth/dashboard/final/
-
-# Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install all dependencies (dashboard + AI module)
-pip install -r requirements.txt
-```
-
-**Note:** Keep this virtual environment activated for all subsequent Python operations (AI training and dashboard execution).
-
 ---
 
 ## 3️⃣ AI Module – Active Fingerprinting Detection
