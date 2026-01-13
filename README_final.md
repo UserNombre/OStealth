@@ -99,14 +99,14 @@ This module is independent from OStealth. Its purpose is to detect active OS fin
 source /venv/bin/activate
 
 # Train model (from modeling/ directory)
-cd /home/kali/OStealth/modeling/
+cd modeling
 python3 train.py
 
 # Validate model
 python3 validation.py
 
 # Run real-time prediction (replace eth0 with your interface if needed)
-sudo python3 predict.py eth0
+sudo ../venv/bin/python3 -u predict.py eth0
 ```
 
 **Output interpretation:**
