@@ -122,6 +122,8 @@ The application provides a Streamlit-based dashboard to visualize and interact w
 ⚠️ **Note:** Ensure the virtual environment from step 2 is activated before running the dashboard.
 
 ```bash
+#Move to final dashboard
+(venv) cd /dashboard/final
 # Run application
 streamlit run app.py
 ```
