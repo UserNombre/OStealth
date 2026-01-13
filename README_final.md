@@ -33,15 +33,6 @@ This path is hardcoded in the dashboard application (`app.py`) because:
 - eBPF and network tools operate with absolute paths and root context.
 - Hardcoded paths ensure consistency and reproducibility.
 - It simplifies setup for evaluation and demonstration purposes.
-
-Attempting to run this on other distributions (Ubuntu, Fedora, macOS, Windows) would require:
-- Recompiling eBPF modules for different kernels.
-- Installing and configuring p0f, nmap, and network tools manually.
-- Resolving sudo/root permission handling differences.
-- Significant code refactoring.
-
-**This is not supported and outside the scope of this academic project.**
-
 ---
 
 ## 📌 Recommended Deployment Flow
