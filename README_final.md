@@ -8,37 +8,10 @@ This project is composed of three independent but complementary components, desi
 2. **AI Module** – Active fingerprinting detection using nmap
 3. **Application & Demonstrations** – Dashboard and practical traffic tests
 
----
-
-## 🖥️ System Requirements
-
-⚠️ **This project is specifically designed for Kali Linux and is not portable to other systems.**
-
-### Why Kali Linux Only?
-
-The project has deep dependencies on Kali's kernel and tooling:
-
-- **eBPF kernel module**: Requires Linux kernel ≥4.18 with BPF support, clang with BPF backend, and specific kernel headers.
-- **OStealth dependencies**: Traffic Control (tc), clsact qdisc, bpftool, libbpf-dev.
-- **Security tools**: p0f, nmap, tcpdump (pre-installed and pre-configured in Kali).
-- **Root privileges**: Required for packet manipulation, eBPF loading, and network monitoring.
-- **Network stack configuration**: Specific tc filter and qdisc setup.
-
-### Required Installation Path
-
-**The project MUST be installed in:** `/home/kali/OStealth/`
-
-This path is hardcoded in the dashboard application (`app.py`) because:
-- The project is already 100% dependent on Kali Linux environment.
-- eBPF and network tools operate with absolute paths and root context.
-- Hardcoded paths ensure consistency and reproducibility.
-- It simplifies setup for evaluation and demonstration purposes.
----
-
 ## 📌 Recommended Deployment Flow
 
 1. Clone repository to `/home/kali/OStealth/`
-2. Setup Python virtual environment in `/home/kali/OStealth/dashboard/final/`
+2. Setup Python virtual environment
 3. Install and run OStealth (eBPF module)
 4. Train and execute the AI module
 5. Deploy the application (dashboard)
@@ -48,16 +21,7 @@ This path is hardcoded in the dashboard application (`app.py`) because:
 
 ## 1️⃣ Virtual Environment Setup (Required before AI Module)
 
-⚠️ **Critical:** The virtual environment **must** be created inside `/home/kali/OStealth/dashboard/final/` because:
-- The Streamlit application (`app.py`) contains hardcoded absolute paths to this location.
-- The dashboard references: `/home/kali/OStealth/dashboard/final/venv/bin/python3`.
-- The AI module and dashboard share dependencies and need to access the same models.
-- This path consistency is required due to the complex interaction between eBPF, sudo, venv, and Streamlit.
-
 ```bash
-# Navigate to dashboard directory
-cd /home/kali/OStealth/dashboard/final/
-
 # Create and activate virtual environment
 python3 -m venv venv
 source venv/bin/activate
