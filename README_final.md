@@ -159,7 +159,3 @@ sudo nmap -O --osscan-guess -Pn -n -F 192.168.0.1
 ```
 
 ---
-
-## 📜 License
-
-GPL – required for the use of eBPF helper functions.
