@@ -96,7 +96,7 @@ This module is independent from OStealth. Its purpose is to detect active OS fin
 ### Train and validate model
 ```bash
 # Ensure venv is activated
-source /home/kali/OStealth/dashboard/final/venv/bin/activate
+source /venv/bin/activate
 
 # Train model (from modeling/ directory)
 cd /home/kali/OStealth/modeling/
@@ -122,12 +122,6 @@ The application provides a Streamlit-based dashboard to visualize and interact w
 ⚠️ **Note:** Ensure the virtual environment from step 2 is activated before running the dashboard.
 
 ```bash
-# Navigate to dashboard directory (if not already there)
-cd /home/kali/OStealth/dashboard/final/
-
-# Activate virtual environment
-source venv/bin/activate
-
 # Run application
 streamlit run app.py
 ```
@@ -175,116 +169,3 @@ sudo ./generate_traffic_realistic_scapy_no_nmap.sh 192.168.1.1 eth0 60
 # Test active fingerprinting with nmap
 sudo nmap -O --osscan-guess -Pn -n -F 192.168.0.1
 ```
-
----
-
-## 📂 Project Structure
-```
-OStealth/
-├── ostealth.c              # eBPF program source
-├── ostealth.o              # Compiled eBPF object
-├── ostealth.py             # OStealth configuration script (updates BPF map)
-├── modeling/               # AI Module
-│   ├── train.py           # Model training
-│   ├── validation.py      # Model validation
-│   └── predict.py         # Real-time prediction
-└── dashboard/
-    └── final/             # Dashboard application
-        ├── venv/          # Python virtual environment (MUST BE HERE)
-        ├── app.py         # Streamlit dashboard
-        ├── requirements.txt
-        └── inspection.log # Live detection logs (generated at runtime)
-```
-
----
-
-## ⚠️ Known Limitations & Design Decisions
-
-### Absolute Paths
-The dashboard (`app.py`) uses hardcoded absolute paths:
-- `/home/kali/OStealth/dashboard/final/venv/bin/python3`
-- `/home/kali/OStealth/modeling`
-- `/home/kali/OStealth/dashboard/final/inspection.log`
-- `/home/kali/OStealth/ostealth.log`
-
-**Rationale:**
-- The project is already 100% dependent on Kali Linux due to eBPF and network tooling requirements.
-- Hardcoded paths provide consistency with the Kali environment where kernel modules and root operations execute.
-- The complex interaction between eBPF (kernel space), sudo (elevated privileges), Python venv, and Streamlit (web context) makes relative paths unreliable.
-- This design choice prioritizes reproducibility and ease of setup for academic demonstration.
-
-**Impact:** The project requires Kali Linux with exact directory structure `/home/kali/OStealth/`. This is acceptable for a proof-of-concept security research project.
-
-**Future improvement:** For production deployment, this would require containerization (Docker with privileged mode for eBPF) or a proper installer with environment detection and configuration management.
-
-### OStealth Scope
-OStealth only affects **passive fingerprinting** (p0f). It does not evade **active fingerprinting** tools like nmap, which send probe packets and analyze responses. The AI module addresses active fingerprinting detection as a complementary defense layer.
-
----
-
-## 🔧 Troubleshooting
-
-### eBPF Compilation Issues
-```bash
-# Verify clang BPF support
-clang --version | grep -i bpf
-
-# Check kernel headers
-ls /usr/src/linux-headers-$(uname -r)/
-
-# Verify bpftool installation
-which bpftool
-```
-
-### TC Filter Not Loading
-```bash
-# Remove existing qdiscs
-sudo tc qdisc del dev eth0 clsact
-
-# Recreate and reload
-sudo tc qdisc add dev eth0 clsact
-sudo tc filter add dev eth0 egress bpf direct-action obj ostealth.o sec tc_egress
-```
-
-### Virtual Environment Issues
-```bash
-# Recreate venv if corrupted
-cd /home/kali/OStealth/dashboard/final/
-rm -rf venv
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-### Dashboard Not Starting
-```bash
-# Check if port 8501 is already in use
-sudo lsof -i :8501
-
-# Kill existing Streamlit processes
-pkill -f streamlit
-
-# Restart dashboard
-streamlit run app.py
-```
-
----
-
-## 📜 License
-
-GPL – required for the use of eBPF helper functions and kernel interaction.
-
----
-
-## 👥 Authors
-
-Academic project for OS Fingerprinting research and demonstration.
-
----
-
-## 📚 References
-
-- [eBPF Documentation](https://ebpf.io/)
-- [p0f - Passive OS Fingerprinting](https://lcamtuf.coredump.cx/p0f3/)
-- [nmap OS Detection](https://nmap.org/book/man-os-detection.html)
-- [Traffic Control (tc) Man Page](https://man7.org/linux/man-pages/man8/tc.8.html)
