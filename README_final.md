@@ -18,27 +18,27 @@ This project is composed of three independent but complementary components, desi
 
 The project has deep dependencies on Kali's kernel and tooling:
 
-- **eBPF kernel module**: Requires Linux kernel ≥4.18 with BPF support, clang with BPF backend, and specific kernel headers
-- **OStealth dependencies**: Traffic Control (tc), clsact qdisc, bpftool, libbpf-dev
-- **Security tools**: p0f, nmap, tcpdump (pre-installed and pre-configured in Kali)
-- **Root privileges**: Required for packet manipulation, eBPF loading, and network monitoring
-- **Network stack configuration**: Specific tc filter and qdisc setup
+- **eBPF kernel module**: Requires Linux kernel ≥4.18 with BPF support, clang with BPF backend, and specific kernel headers.
+- **OStealth dependencies**: Traffic Control (tc), clsact qdisc, bpftool, libbpf-dev.
+- **Security tools**: p0f, nmap, tcpdump (pre-installed and pre-configured in Kali).
+- **Root privileges**: Required for packet manipulation, eBPF loading, and network monitoring.
+- **Network stack configuration**: Specific tc filter and qdisc setup.
 
 ### Required Installation Path
 
 **The project MUST be installed in:** `/home/kali/OStealth/`
 
-This path is hardcoded in the dashboard application because:
-- The project is already 100% dependent on Kali Linux environment
-- eBPF and network tools operate with absolute paths and root context
-- Hardcoded paths ensure consistency and reproducibility
-- It simplifies setup for evaluation and demonstration purposes
+This path is hardcoded in the dashboard application (`app.py`) because:
+- The project is already 100% dependent on Kali Linux environment.
+- eBPF and network tools operate with absolute paths and root context.
+- Hardcoded paths ensure consistency and reproducibility.
+- It simplifies setup for evaluation and demonstration purposes.
 
 Attempting to run this on other distributions (Ubuntu, Fedora, macOS, Windows) would require:
-- Recompiling eBPF modules for different kernels
-- Installing and configuring p0f, nmap, and network tools manually
-- Resolving sudo/root permission handling differences
-- Significant code refactoring
+- Recompiling eBPF modules for different kernels.
+- Installing and configuring p0f, nmap, and network tools manually.
+- Resolving sudo/root permission handling differences.
+- Significant code refactoring.
 
 **This is not supported and outside the scope of this academic project.**
 
@@ -91,9 +91,16 @@ sudo tc filter add dev eth0 egress bpf direct-action \
 
 # Verify installation
 sudo tc filter show dev eth0 egress
+```
 
-# Configure runtime spoofing
-sudo python3 ostealth.py eth0
+### Configure Runtime Spoofing
+Once the eBPF program is loaded, use the Python script to update the configuration map with the desired OS signature.
+
+```bash
+# Syntax: sudo python3 ostealth.py <OS_NAME>
+# Supported OS: WindowsXP, Windows7, FreeBSD, OpenBSD, Solaris, Linux
+
+sudo python3 ostealth.py WindowsXP
 ```
 
 ### Unload OStealth
@@ -107,10 +114,11 @@ sudo tc qdisc del dev eth0 clsact
 ## 2️⃣ Virtual Environment Setup (Required before AI Module)
 
 ⚠️ **Critical:** The virtual environment **must** be created inside `/home/kali/OStealth/dashboard/final/` because:
-- The Streamlit application (`app.py`) contains hardcoded absolute paths to this location
-- The dashboard references: `/home/kali/OStealth/dashboard/final/venv/bin/python3`
-- The AI module and dashboard share dependencies and need to access the same models
-- This path consistency is required due to the complex interaction between eBPF, sudo, venv, and Streamlit
+- The Streamlit application (`app.py`) contains hardcoded absolute paths to this location.
+- The dashboard references: `/home/kali/OStealth/dashboard/final/venv/bin/python3`.
+- The AI module and dashboard share dependencies and need to access the same models.
+- This path consistency is required due to the complex interaction between eBPF, sudo, venv, and Streamlit.
+
 ```bash
 # Navigate to dashboard directory
 cd /home/kali/OStealth/dashboard/final/
@@ -150,8 +158,8 @@ sudo python3 predict.py eth0
 ```
 
 **Output interpretation:**
-- `[[1 0]]` → Fingerprinting detected
-- `[[0 1]]` → No fingerprinting detected
+- `[[1 0]]` → Fingerprinting detected (Nmap scan)
+- `[[0 1]]` → No fingerprinting detected (Normal traffic)
 
 ---
 
@@ -160,6 +168,7 @@ sudo python3 predict.py eth0
 The application provides a Streamlit-based dashboard to visualize and interact with the system.
 
 ⚠️ **Note:** Ensure the virtual environment from step 2 is activated before running the dashboard.
+
 ```bash
 # Navigate to dashboard directory (if not already there)
 cd /home/kali/OStealth/dashboard/final/
@@ -175,9 +184,9 @@ The dashboard will be accessible at `http://localhost:8501`
 
 ### Dashboard Features
 
-- **Defense Layer**: Activate OStealth with different OS profiles (Windows XP/7, Linux, FreeBSD, OpenBSD, Solaris)
-- **Inspection Layer**: Run p0f passive fingerprinting tests with automated curl traffic generation
-- **Live Detection**: Real-time AI-powered detection of active nmap fingerprinting attempts
+- **Defense Layer**: Activate OStealth with different OS profiles (Windows XP/7, Linux, FreeBSD, OpenBSD, Solaris).
+- **Inspection Layer**: Run p0f passive fingerprinting tests with automated curl traffic generation.
+- **Live Detection**: Real-time AI-powered detection of active nmap fingerprinting attempts.
 
 ---
 
@@ -222,7 +231,7 @@ sudo nmap -O --osscan-guess -Pn -n -F 192.168.0.1
 OStealth/
 ├── ostealth.c              # eBPF program source
 ├── ostealth.o              # Compiled eBPF object
-├── ostealth.py             # OStealth configuration script
+├── ostealth.py             # OStealth configuration script (updates BPF map)
 ├── modeling/               # AI Module
 │   ├── train.py           # Model training
 │   ├── validation.py      # Model validation
@@ -232,7 +241,7 @@ OStealth/
         ├── venv/          # Python virtual environment (MUST BE HERE)
         ├── app.py         # Streamlit dashboard
         ├── requirements.txt
-        └── inspection.log # Live detection logs
+        └── inspection.log # Live detection logs (generated at runtime)
 ```
 
 ---
@@ -244,12 +253,13 @@ The dashboard (`app.py`) uses hardcoded absolute paths:
 - `/home/kali/OStealth/dashboard/final/venv/bin/python3`
 - `/home/kali/OStealth/modeling`
 - `/home/kali/OStealth/dashboard/final/inspection.log`
+- `/home/kali/OStealth/ostealth.log`
 
 **Rationale:**
-- The project is already 100% dependent on Kali Linux due to eBPF and network tooling requirements
-- Hardcoded paths provide consistency with the Kali environment where kernel modules and root operations execute
-- The complex interaction between eBPF (kernel space), sudo (elevated privileges), Python venv, and Streamlit (web context) makes relative paths unreliable
-- This design choice prioritizes reproducibility and ease of setup for academic demonstration
+- The project is already 100% dependent on Kali Linux due to eBPF and network tooling requirements.
+- Hardcoded paths provide consistency with the Kali environment where kernel modules and root operations execute.
+- The complex interaction between eBPF (kernel space), sudo (elevated privileges), Python venv, and Streamlit (web context) makes relative paths unreliable.
+- This design choice prioritizes reproducibility and ease of setup for academic demonstration.
 
 **Impact:** The project requires Kali Linux with exact directory structure `/home/kali/OStealth/`. This is acceptable for a proof-of-concept security research project.
 
