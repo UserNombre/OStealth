@@ -13,9 +13,10 @@ This project is composed of three independent but complementary components, desi
 ## 📌 Recommended Deployment Flow
 
 1. Install and run OStealth
-2. Train and execute the AI module
-3. Deploy the application (dashboard)
-4. Run practical demonstrations (curl, nmap, traffic generation)
+2. Setup virtual environment: `cd ~/OStealth/dashboard/final/ && python3 -m venv venv && source venv/bin/activate`
+3. Train and execute the AI module
+4. Deploy the application (dashboard)
+5. Run practical demonstrations (curl, nmap, traffic generation)
 
 ---
 
@@ -52,6 +53,9 @@ sudo tc filter add dev eth0 egress bpf direct-action \
 
 # Verify installation
 sudo tc filter show dev eth0 egress
+
+# Configure runtime spoofing
+sudo python3 ostealth.py eth0
 ```
 
 ### Unload OStealth
@@ -62,17 +66,33 @@ sudo tc qdisc del dev eth0 clsact
 
 ---
 
-## 2️⃣ AI Module – Active Fingerprinting Detection (Independent)
+## 2️⃣ Virtual Environment Setup (Required before AI Module)
+
+⚠️ **Important:** The virtual environment must be created inside `~/OStealth/dashboard/final/` as this directory contains the Streamlit application code. This same environment needs the AI module dependencies.
+```bash
+# Navigate to dashboard directory
+cd ~/OStealth/dashboard/final/
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install all dependencies (dashboard + AI module)
+pip install -r requirements.txt
+```
+
+---
+
+## 3️⃣ AI Module – Active Fingerprinting Detection
 
 This module is independent from OStealth. Its purpose is to detect active OS fingerprinting attempts performed with nmap, using a trained machine learning model.
 
-### Setup and train model
-```bash
-# Install dependencies
-pip install -r requirements.txt
+⚠️ **Note:** Ensure the virtual environment from step 2 is activated before proceeding.
 
+### Train and validate model
+```bash
 # Train model (from modeling/ directory)
-cd modeling/
+cd ~/OStealth/modeling/
 python3 train.py
 
 # Validate model
@@ -88,16 +108,17 @@ sudo python3 predict.py iface
 
 ---
 
-## 3️⃣ Application Deployment (Dashboard)
+## 4️⃣ Application Deployment (Dashboard)
 
 The application provides a Streamlit-based dashboard to visualize and interact with the system.
-```bash
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
 
-# Install dependencies
-pip install -r requirements.txt
+⚠️ **Note:** Ensure the virtual environment from step 2 is activated before running the dashboard.
+```bash
+# Navigate to dashboard directory (if not already there)
+cd ~/OStealth/dashboard/final/
+
+# Activate virtual environment
+source venv/bin/activate
 
 # Run application
 streamlit run app.py
@@ -105,7 +126,7 @@ streamlit run app.py
 
 ---
 
-## 4️⃣ Practical Demonstrations
+## 5️⃣ Practical Demonstrations
 
 ### TCP Traffic Generation (Netcat)
 ```bash
