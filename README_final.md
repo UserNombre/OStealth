@@ -98,8 +98,6 @@ python3 train.py
 # Validate model
 python3 validation.py
 
-# Run real-time prediction (replace iface with eth0, en0, etc.)
-sudo python3 predict.py iface
 ```
 
 **Output interpretation:**
