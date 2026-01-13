@@ -25,55 +25,39 @@ OStealth is a kernel-space eBPF tool that modifies outgoing TCP SYN packets in r
 
 ⚠️ **Important:** OStealth only affects p0f. It does not spoof active fingerprinting tools such as nmap.
 
-### 🔧 Requirements (Kali Linux)
+### Install dependencies and compile (Kali Linux)
 ```bash
+# Install required packages
 sudo apt update
 sudo apt install -y clang llvm libbpf-dev iproute2 tcpdump bpftool
-```
 
-### ARM64 Fix (Mac M1/M2 virtual machines)
-```bash
+# ARM64 Fix (Mac M1/M2 virtual machines only)
 sudo ln -sf /usr/include/aarch64-linux-gnu/asm /usr/include/asm
-```
 
-### ⚙️ eBPF Program Compilation
-```bash
+# Compile eBPF program (-O2 optimization required for eBPF verifier)
 clang -O2 -g -target bpf -c ostealth.c -o ostealth.o
-```
 
-Verify the `tc_egress` section exists:
-```bash
+# Verify tc_egress section exists
 llvm-objdump -h ostealth.o | grep tc_egress
 ```
 
-The `-O2` optimization flag is required for the eBPF verifier.
-
-### 🚀 Loading OStealth
-
-**1. Configure the network interface**
+### Load OStealth
 ```bash
+# Configure network interface (replace eth0 with your interface: en0, wlan0, etc.)
 sudo tc qdisc add dev eth0 clsact
-```
 
-Replace `eth0` with the appropriate interface (`en0`, `wlan0`, etc.).
-
-**2. Attach the eBPF filter**
-```bash
+# Attach eBPF filter
 sudo tc filter add dev eth0 egress bpf direct-action \
      obj ostealth.o sec tc_egress verbose
-```
 
-**3. Verify installation**
-```bash
+# Verify installation
 sudo tc filter show dev eth0 egress
-```
 
-### ⚙️ Runtime Spoofing Configuration
-```bash
+# Configure runtime spoofing
 sudo python3 ostealth.py eth0
 ```
 
-### 🧹 Unloading OStealth
+### Unload OStealth
 ```bash
 sudo tc filter del dev eth0 egress
 sudo tc qdisc del dev eth0 clsact
@@ -85,53 +69,40 @@ sudo tc qdisc del dev eth0 clsact
 
 This module is independent from OStealth. Its purpose is to detect active OS fingerprinting attempts performed with nmap, using a trained machine learning model.
 
-### 📦 Install Dependencies
+### Setup and train model
 ```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-### 🧠 Model Training
-
-From the `modeling/` directory:
-```bash
+# Train model (from modeling/ directory)
+cd modeling/
 python3 train.py
-```
 
-### ✅ Model Validation
-```bash
+# Validate model
 python3 validation.py
-```
 
-### 🔍 Real-Time Prediction
-```bash
+# Run real-time prediction (replace iface with eth0, en0, etc.)
 sudo python3 predict.py iface
 ```
 
-Interface examples:
-- Linux: `eth0`
-- macOS: `en0`
-
-### 📊 Output Interpretation
-```
-[[1 0]] → Fingerprinting detected
-[[0 1]] → No fingerprinting detected
-```
+**Output interpretation:**
+- `[[1 0]]` → Fingerprinting detected
+- `[[0 1]]` → No fingerprinting detected
 
 ---
 
 ## 3️⃣ Application Deployment (Dashboard)
 
 The application provides a Streamlit-based dashboard to visualize and interact with the system.
-
-### 🐍 Python Virtual Environment
 ```bash
+# Create virtual environment
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
-```
 
-### 🚀 Run the Application
-```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run application
 streamlit run app.py
 ```
 
@@ -139,42 +110,35 @@ streamlit run app.py
 
 ## 4️⃣ Practical Demonstrations
 
-### 📡 TCP Traffic Generation (Netcat)
-
-**On the OStealth machine:**
+### TCP Traffic Generation (Netcat)
 ```bash
+# On OStealth machine
 nc -lvp 1234
-```
 
-**On the remote machine:**
-```bash
+# On remote machine
 nc <OSTEALTH_MACHINE_IP> 1234
 ```
 
-### 🌐 CURL Demonstration (Recommended)
+### CURL Demonstration (Recommended)
 
 Due to forced TCP SYN packet manipulation, curl is more reliable than netcat for observing OS fingerprinting behavior.
-
-**Remote machine:**
 ```bash
+# On remote machine - setup web server
 mkdir -p ~/web
 echo "WEB de B OK" > ~/web/index.html
 cd ~/web
 python3 -m http.server 11080 --bind 0.0.0.0
-```
 
-**OStealth machine:**
-```bash
+# On OStealth machine - test connection
 curl http://localhost:11080/
 ```
 
-### 🔬 Realistic Traffic Generation
+### Traffic Generation and Fingerprinting Tests
 ```bash
+# Generate realistic traffic
 sudo ./generate_traffic_realistic_scapy_no_nmap.sh 192.168.1.1 eth0 60
-```
 
-### 🧪 Active Fingerprinting Test (nmap)
-```bash
+# Test active fingerprinting with nmap
 sudo nmap -O --osscan-guess -Pn -n -F 192.168.0.1
 ```
 
