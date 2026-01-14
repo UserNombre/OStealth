@@ -32,8 +32,7 @@ pip install -r requirements.txt
 ---
 **Note:** Keep this virtual environment activated for all subsequent Python operations (AI training and dashboard execution).
 
-## 2️⃣ OStealth Installation (Mandatory First Step)
-
+## 2️⃣ OStealth Installation
 OStealth is a kernel-space eBPF tool that modifies outgoing TCP SYN packets in real time to evade passive OS fingerprinting performed by p0f.
 
 ⚠️ **Important:** OStealth only affects p0f. It does not spoof active fingerprinting tools such as nmap.
