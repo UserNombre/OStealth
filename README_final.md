@@ -67,23 +67,6 @@ sudo tc filter add dev eth0 egress bpf direct-action \
 sudo tc filter show dev eth0 egress
 ```
 
-### Configure Runtime Spoofing
-Once the eBPF program is loaded, use the Python script to update the configuration map with the desired OS signature.
-
-```bash
-# Syntax: sudo python3 ostealth.py <OS_NAME>
-# Supported OS: WindowsXP, Windows7, FreeBSD, OpenBSD, Solaris, Linux
-
-sudo python3 ostealth.py WindowsXP
-```
-
-### Unload OStealth
-```bash
-sudo tc filter del dev eth0 egress
-sudo tc qdisc del dev eth0 clsact
-```
----
-
 ## 3️⃣ Application Deployment (Dashboard)
 
 The application provides a Streamlit-based dashboard to visualize and interact with the system.
@@ -92,7 +75,7 @@ The application provides a Streamlit-based dashboard to visualize and interact w
 
 ```bash
 #Move to final dashboard
-(venv) cd /dashboard/final
+cd /dashboard/final
 # Run application
 streamlit run app.py
 ```
@@ -140,6 +123,32 @@ sudo ./generate_traffic_realistic_scapy_no_nmap.sh 192.168.1.1 eth0 60
 # Test active fingerprinting with nmap
 sudo nmap -O --osscan-guess -Pn -n -F 192.168.0.1
 ```
+
+### Configure Runtime Spoofing 
+Once the eBPF program is loaded, use the Python script to update the configuration map with the desired OS signature.
+
+```bash
+# Syntax: sudo python3 ostealth.py <OS_NAME>
+# Supported OS: WindowsXP, Windows7, FreeBSD, OpenBSD, Solaris, Linux
+
+sudo python3 ostealth.py WindowsXP
+```
+
+### Unload OStealth
+```bash
+sudo tc filter del dev eth0 egress
+sudo tc qdisc del dev eth0 clsact
+```
+### Configure Runtime Predict
+```bash
+# Run real-time prediction (replace eth0 with your interface if needed)
+sudo ../venv/bin/python3 -u predict.py eth0
+```
+
+**Output interpretation:**
+- `[[1 0]]` → Fingerprinting detected (Nmap scan)
+- `[[0 1]]` → No fingerprinting detected (Normal traffic)
+
 ---
 ## 5️⃣ AI Module – Active Fingerprinting Detection
 
@@ -159,15 +168,4 @@ python3 train.py
 # Validate model
 python3 validation.py
 ```
-### Configure Runtime Predict
-```bash
-# Run real-time prediction (replace eth0 with your interface if needed)
-sudo ../venv/bin/python3 -u predict.py eth0
-```
-
-**Output interpretation:**
-- `[[1 0]]` → Fingerprinting detected (Nmap scan)
-- `[[0 1]]` → No fingerprinting detected (Normal traffic)
-
-
 ---
