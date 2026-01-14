@@ -10,13 +10,11 @@ This project is composed of three independent but complementary components, desi
 
 ## 📌 Recommended Deployment Flow
 
-1. Clone repository to `/home/kali/OStealth/`
-2. Setup Python virtual environment
-3. Install and run OStealth (eBPF module)
-4. Train and execute the AI module
-5. Deploy the application (dashboard)
-6. Run practical demonstrations (curl, nmap, traffic generation)
-   
+1. Setup Python virtual environment
+2. Install and run OStealth (eBPF module)
+3. Deploy the application (dashboard)
+4. Run practical demonstrations (curl, nmap, traffic generation)
+5. Train and execute the AI module
 ---
 
 ## 1️⃣ Virtual Environment Setup
@@ -86,37 +84,7 @@ sudo tc qdisc del dev eth0 clsact
 ```
 ---
 
-## 3️⃣ AI Module – Active Fingerprinting Detection
-
-This module is independent from OStealth. Its purpose is to detect active OS fingerprinting attempts performed with nmap, using a trained machine learning model.
-
-⚠️ **Note:** Ensure the virtual environment from step 2 is activated before proceeding.
-
-### Train and validate model
-```bash
-# Ensure venv is activated
-source /venv/bin/activate
-
-# Train model (from modeling/ directory)
-cd modeling
-python3 train.py
-
-# Validate model
-python3 validation.py
-```
-### Configure Runtime Predict
-```bash
-# Run real-time prediction (replace eth0 with your interface if needed)
-sudo ../venv/bin/python3 -u predict.py eth0
-```
-
-**Output interpretation:**
-- `[[1 0]]` → Fingerprinting detected (Nmap scan)
-- `[[0 1]]` → No fingerprinting detected (Normal traffic)
-
----
-
-## 4️⃣ Application Deployment (Dashboard)
+## 3️⃣ Application Deployment (Dashboard)
 
 The application provides a Streamlit-based dashboard to visualize and interact with the system.
 
@@ -139,7 +107,7 @@ The dashboard will be accessible at `http://localhost:8501`
 
 ---
 
-## 5️⃣ Practical Demonstrations
+## 4️⃣ Practical Demonstrations
 
 ### TCP Traffic Generation (Netcat)
 ```bash
@@ -172,3 +140,34 @@ sudo ./generate_traffic_realistic_scapy_no_nmap.sh 192.168.1.1 eth0 60
 # Test active fingerprinting with nmap
 sudo nmap -O --osscan-guess -Pn -n -F 192.168.0.1
 ```
+---
+## 5️⃣ AI Module – Active Fingerprinting Detection
+
+This module is independent from OStealth. Its purpose is to detect active OS fingerprinting attempts performed with nmap, using a trained machine learning model.
+
+⚠️ **Note:** Ensure the virtual environment from step 2 is activated before proceeding.
+
+### Train and validate model
+```bash
+# Ensure venv is activated
+source /venv/bin/activate
+
+# Train model (from modeling/ directory)
+cd modeling
+python3 train.py
+
+# Validate model
+python3 validation.py
+```
+### Configure Runtime Predict
+```bash
+# Run real-time prediction (replace eth0 with your interface if needed)
+sudo ../venv/bin/python3 -u predict.py eth0
+```
+
+**Output interpretation:**
+- `[[1 0]]` → Fingerprinting detected (Nmap scan)
+- `[[0 1]]` → No fingerprinting detected (Normal traffic)
+
+
+---
