@@ -75,7 +75,7 @@ The application provides a Streamlit-based dashboard to visualize and interact w
 
 ```bash
 #Move to final dashboard
-cd /dashboard/final
+cd dashboard/final
 # Run application
 streamlit run app.py
 ```
