@@ -19,7 +19,7 @@ This project is composed of three independent but complementary components, desi
    
 ---
 
-## 1️⃣ Virtual Environment Setup (Required before AI Module)
+## 1️⃣ Virtual Environment Setup
 
 ```bash
 # Create and activate virtual environment
