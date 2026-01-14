@@ -103,7 +103,9 @@ python3 train.py
 
 # Validate model
 python3 validation.py
-
+```
+### Configure Runtime Predict
+```bash
 # Run real-time prediction (replace eth0 with your interface if needed)
 sudo ../venv/bin/python3 -u predict.py eth0
 ```
