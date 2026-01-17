@@ -1,7 +1,15 @@
-# ![Logo](dashboard/final/logo.png) OStealth + AI Fingerprinting Detection
+<h1>
+  <img src="dashboard/final/logo.png"
+       width="40"
+       style="vertical-align: middle; margin-right: 6px;">
+  OStealth
+  <span style="font-weight: 400; opacity: 0.8;">
+    + AI Fingerprinting Detection
+  </span>
+</h1>
 
-**OS Fingerprinting Evasion and Detection Framework**
-
+ **OS Fingerprinting Evasion and Detection Framework**
+ 
 This project is composed of three independent but complementary components, designed to demonstrate OS fingerprinting evasion and detection techniques:
 
 1. **OStealth (eBPF)** – Passive OS fingerprint spoofing (p0f only)
