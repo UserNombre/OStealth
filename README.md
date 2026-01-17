@@ -1,4 +1,4 @@
-# 🛡️ OStealth + AI Fingerprinting Detection
+# ![Logo](dashboard/final/logo.png) OStealth + AI Fingerprinting Detection
 
 **OS Fingerprinting Evasion and Detection Framework**
 
