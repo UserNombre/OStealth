@@ -4,6 +4,10 @@ import time
 import os
 import re
 from pathlib import Path
+import json
+import numpy as np
+import io
+import scipy.io.wavfile
 
 # -----------------------------------------------------------------------------
 # Configuration & CSS
@@ -14,6 +18,23 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+@st.cache_data
+def get_beep_audio():
+    """Generates a simple beep sound for alerts."""
+    sample_rate = 44100
+    duration = 0.3
+    frequency = 880 # A5
+    t = np.linspace(0, duration, int(sample_rate * duration), False)
+    # Sine wave
+    note = np.sin(frequency * t * 2 * np.pi)
+    # Fade out
+    note = note * np.linspace(1, 0, len(note))
+    audio = (note * 32767).astype(np.int16)
+    
+    virtual_file = io.BytesIO()
+    scipy.io.wavfile.write(virtual_file, sample_rate, audio)
+    return virtual_file.getvalue()
 
 st.markdown("""
 <style>
@@ -199,7 +220,19 @@ def parse_p0f_log(content):
 # Main UI
 # -----------------------------------------------------------------------------
 def main():
-    st.title("🛡️ OStealth Control & Inspect")
+    # Logo
+    logo_path = BASE_DIR / "logo.png"
+    if logo_path.exists():
+        # Use vertical_alignment="center" to align logo and text vertically
+        col_logo, col_title = st.columns([0.8, 5], vertical_alignment="center")
+        with col_logo:
+            st.image(str(logo_path), use_container_width=True)
+        with col_title:
+             # Reduce top margin of title to align better using minimal CSS if needed, 
+             # but vertical_alignment handles most of it.
+             st.markdown('<h1 style="padding-top:0rem; margin-top: -1rem;">OStealth Control & Inspect</h1>', unsafe_allow_html=True)
+    else:
+        st.title("🛡️ OStealth Control & Inspect")
     
     # Tabs for better organization
     tab_defense, tab_inspection, tab_live = st.tabs(["🛡️ Defense", "🔍 Inspection", "🚨 Live Detection"])
@@ -290,6 +323,10 @@ def main():
                 
                 # Clear old log
                 subprocess.run(f"rm -f {live_log_path_str}", shell=True)
+                # Clear history csv
+                try: 
+                    (BASE_DIR / "detection_history.csv").unlink() 
+                except: pass
                 
                 # Launch
                 full_debug_cmd = f"cd {work_dir} && sudo {cmd_predict[0]} -u predict.py eth0 > {live_log_path_str}"
@@ -317,37 +354,117 @@ def main():
             except:
                 log_content = ""
                 
+            # --- LOAD STATIC METRICS ---
             lines = log_content.splitlines()
+            model_accuracy = "N/A"
+            try:
+                metrics_path = Path("../../modeling/metrics/training_metrics.csv")
+                # Handle path relative to where app.py is running
+                if not metrics_path.exists():
+                     metrics_path = BASE_DIR / "../../modeling/metrics/training_metrics.csv"
+                
+                if metrics_path.exists():
+                    import pandas as pd
+                    df_metrics = pd.read_csv(metrics_path)
+                    if not df_metrics.empty:
+                        acc_val = df_metrics.iloc[-1]['accuracy']
+                        model_accuracy = f"{acc_val:.1%}"
+            except:
+                pass
+
+            # --- PROCESS HISTORY & CHARTING ---
+            # Define history file path
+            history_csv = BASE_DIR / "detection_history.csv"
             
-            # --- SCORING LOGIC ---
+            # Initialize state for tracking lines
+            if 'last_line_count' not in st.session_state:
+                st.session_state.last_line_count = 0
+            
+            # If log was cleared (e.g. restart), reset tracker
+            if len(lines) < st.session_state.last_line_count:
+                st.session_state.last_line_count = 0
+                
+            # Process NEW lines only
+            new_lines = lines[st.session_state.last_line_count:]
+            if new_lines:
+                import datetime
+                import csv
+                
+                current_time = datetime.datetime.now().strftime("%H:%M:%S")
+                new_attacks = 0
+                total_new = len(new_lines)
+                
+                for nl in new_lines:
+                    # Robust regex check for [[1 0]] allowing spaces
+                    if re.search(r'\[\[\s*1\s+0\s*\]\]', nl):
+                        new_attacks += 1
+                
+                # Update Session State Tracker
+                st.session_state.last_line_count = len(lines)
+                
+                # Append to History CSV
+                # We log: Time, NewAttacks, TotalNewPackets, Ratio
+                ratio = (new_attacks / total_new) if total_new > 0 else 0.0
+                
+                file_exists = history_csv.exists()
+                with open(history_csv, "a", newline="") as f_hist:
+                    writer = csv.writer(f_hist)
+                    if not file_exists:
+                        writer.writerow(["Time", "Attacks", "Total", "Ratio"])
+                    writer.writerow([current_time, new_attacks, total_new, ratio])
+
+            # --- PARSE TOTALS ---
             fingerprint_count = 0
             for line in lines:
-                if "[[1 0]]" in line:
+                if re.search(r'\[\[\s*1\s+0\s*\]\]', line): # Attack class (Active) regex
                     fingerprint_count += 1
+
+            # --- ALERTS ("One Beep" Logic) ---
+            if 'was_under_attack' not in st.session_state:
+                st.session_state.was_under_attack = False
+
+            is_under_attack = fingerprint_count > 0
             
+            if is_under_attack and not st.session_state.was_under_attack:
+                st.toast("🚨 Attack Detected! System Compromised.", icon="🔥")
+                st.audio(get_beep_audio(), format="audio/wav", autoplay=True)
+            
+            st.session_state.was_under_attack = is_under_attack
+
             # --- UI METRICS ---
-            m_score, m_status = st.columns([1, 2])
+            m_score, m_acc, m_status = st.columns([1, 1, 2])
             
             with m_score:
                 st.metric("Fingerprinting Score", f"{fingerprint_count}")
+                
+            with m_acc:
+                st.metric("Model Accuracy", model_accuracy, help="Static accuracy from training_metrics.csv")
             
             with m_status:
-                if fingerprint_count > 0:
+                if is_under_attack:
                     st.error(f"🚨 **ATTACK DETECTED!** ({fingerprint_count} packets)", icon="⚠️")
-                    st.markdown("""
-                        <style>
-                        div.stMetric { background-color: #3d0c0c; border: 1px solid #ff4b4b; padding: 10px; border-radius: 5px; }
-                        [data-testid="stMetricValue"] { color: #ff4b4b !important; }
-                        </style>
-                    """, unsafe_allow_html=True)
                 else:
                     if st.session_state.live_monitoring:
                         st.info("✅ Monitoring Active...", icon="📡")
                     else:
                         st.success("✅ System Safe (Idle)", icon="🛡️")
-            
+
+            # --- CHART ---
+            if history_csv.exists():
+                try:
+                    import pandas as pd
+                    df_hist = pd.read_csv(history_csv)
+                    if not df_hist.empty:
+                        st.caption("📈 Attack Verification Ratio (Live Accuracy)")
+                        st.info("Calculation: `Ratio = Attack_Packets / Total_Packets` (per second). Represents the density of attack traffic.")
+                        # Plot Ratio (0.0 to 1.0)
+                        st.line_chart(df_hist.set_index("Time")["Ratio"], height=200, color="#ff4b4b")
+                except Exception as e:
+                    st.error(f"Error loading chart: {e}")
+
             # --- TERMINAL OUTPUT ---
-            st.text_area("Terminal Output (Last 20 lines)", "\n".join(lines[-20:]), height=300)
+            with st.expander("Show Terminal Output (Last 20 lines)"):
+                st.code("\n".join(lines[-20:]))
             
             # --- AUTO-REFRESH LOOP ---
             if st.session_state.live_monitoring:
@@ -364,4 +481,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
