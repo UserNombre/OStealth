@@ -167,5 +167,13 @@ python3 train.py
 
 # Validate model
 python3 validation.py
+
+# Create data to train the models
+# python3 live_tcp_input_ip.py <sniffing interface> <number of CSV packages> <IP address of the attacker running nmap>
+python3 live_tcp_input_ip.py enp0s8 8000 10.0.3.15
+
+# At the same time that we run live_tcp_input_ip.py, we execute the following command to perform random scans
+# generate_nmap_fingerprint_loop_al.sh <victim's IP address> <random range of seconds from 0 to x in which the scan will be performed>
+./generate_nmap_fingerprint_loop_al.sh 10.0.3.4 100
 ```
 ---
