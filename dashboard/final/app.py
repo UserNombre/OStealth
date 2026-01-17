@@ -62,8 +62,9 @@ BASE_DIR = Path(__file__).parent
 p0f_LOG = BASE_DIR / "p0f.log"
 
 # OStealth paths
-# User moved ostealth.py to dashboard/final/
-OSTEALTH_SCRIPT = BASE_DIR / "ostealth.py"
+# Target: OStealth-master/ostealth.py
+# app.py is in dashboard/final/ -> ../../ostealth.py
+OSTEALTH_SCRIPT = Path("../../ostealth.py")
 OSTEALTH_LOG = BASE_DIR / "ostealth.log"
 
 # -----------------------------------------------------------------------------
@@ -110,7 +111,7 @@ def kill_process(name):
 def run_ostealth(os_name):
     """
     Executes: sudo python3 ostealth.py <OS>
-    Runs in the current directory (dashboard/final).
+    Runs in the ROOT directory (OStealth-master/) using relative path.
     """
     try:
         # 1. Clean previous
@@ -118,19 +119,13 @@ def run_ostealth(os_name):
         
         # 2. Setup paths
         log_path = str(OSTEALTH_LOG.resolve())
-        work_dir = str(BASE_DIR.resolve())
+        # USE RELATIVE PATH as requested
+        work_dir = "../../"
         
         # 3. Run
-        # Command: python3 ostealth.py OS_NAME (Relative path, since we cd first)
+        # Command: python3 ostealth.py OS_NAME
         cmd = ["python3", "ostealth.py", os_name]
         
-        # User requested original functionality. 
-        # The user's manual edit removed work_dir but kept log_file=log_path.
-        # However, to be "original functional", we likely NEED work_dir if ostealth depends on being in that dir.
-        # But if the user explicitly removed it, maybe they want it removed.
-        # Let's restore the ORIGINAL working state. Original state likely had work_dir. 
-        # But wait, lines 99-100 were commented out. So it was BROKEN original state?
-        # I will uncomment them to make it work.
         run_command_sudo(cmd, log_file=log_path, work_dir=work_dir)
         
         return True, f"OStealth Launched: {os_name}"
@@ -481,5 +476,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
