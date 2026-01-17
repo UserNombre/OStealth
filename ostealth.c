@@ -17,6 +17,7 @@ char _license[] SEC("license") = "GPL";
 
 struct os_config
 {
+    __u8 enabled;           // Spoofing enabled
     __u16 window_size;      // TCP Window Size
     __u8 ttl_value;         // Target TTL value
     __u8 df_flag;           // Don't Fragment flag
@@ -126,7 +127,7 @@ int spoof_packet(struct __sk_buff *skb)
     // Ensure the map contains data
     __u32 key = 0;
     struct os_config *cfg = bpf_map_lookup_elem(&config_map, &key);
-    if(!cfg) return TC_ACT_OK;
+    if(!cfg || !cfg->enabled) return TC_ACT_OK;
 
     struct ethhdr *eth;
     struct iphdr *ip;

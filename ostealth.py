@@ -43,6 +43,7 @@ class TCPOption():
 
 class TCPRequestConfig(ctypes.Structure):
     _fields_ = [
+        ("enabled", ctypes.c_uint8),
         ("window_size", ctypes.c_uint16),
         ("ttl_value", ctypes.c_uint8),
         ("df_flag", ctypes.c_uint8),
@@ -68,7 +69,7 @@ class TCPOptionP0FFactory():
     }
 
     def str_to_option(self, option_type: str, input1: int | None, input2: int | None) -> TCPOption:
-        option_value = None 
+        option_value = None
         if option_type == 'ts':
             option_value = [(input1 >> (i * 8)) & 0xFF for i in range(4)] + [(input2 >> (i * 8)) & 0xFF for i in range(4)]
         elif option_type == 'mss':
@@ -112,6 +113,7 @@ class TCPRequestConfigFactory():
         df_flag_present = splits[6].split(',')[0] == 'df'
 
         result = TCPRequestConfig(
+            enabled=1,
             window_size=window_size,
             ttl_value=ttl,
             df_flag=df_flag_present,
@@ -127,24 +129,14 @@ class TCPRequestConfigFactory():
             if obj.option_data is not None:
                 for j in range(len(obj.option_data)):
                     result.options[index + 2 + j] = obj.option_data[j]
-            
+
             index += obj.option_length if obj.option_length is not None else 1
 
         return result
 
-
-class TCPRequestConfig(ctypes.Structure):
-    _fields_ = [
-        ("window_size", ctypes.c_uint16),
-        ("ttl_value", ctypes.c_uint8),
-        ("df_flag", ctypes.c_uint8),
-        ("options_size", ctypes.c_uint8),
-        ("options", ctypes.c_uint8 * 40),
-    ]
-
 def find_map_id(map_name ="config_map"):
     """Find the map ID by name"""
-    result = subprocess.run(['bpftool', 'map', 'list'], 
+    result = subprocess.run(['bpftool', 'map', 'list'],
                           capture_output=True, text=True)
     for line in result.stdout.split('\n'):
         if map_name in line:
@@ -159,17 +151,17 @@ def configure_spoofer(system_configuration: TCPRequestConfig, mss: int) -> bool:
     if not map_id:
         print("[-] Error: config_map not found. Is the eBPF program loaded?")
         return False
-    
+
     # Update map using bpftool
     config = bytes(system_configuration)
     key = struct.pack('<I', 0)  # Key = 0
-    
+
     cmd = ['bpftool', 'map', 'update', 'id', str(map_id),
            'key', 'hex'] + [f'{b:02x}' for b in key] + \
           ['value', 'hex'] + [f'{b:02x}' for b in config]
-    
+
     result = subprocess.run(cmd, capture_output=True)
-    
+
     if result.returncode == 0:
 
         print(f"[+] Configuration applied to map ID {map_id}:")
@@ -183,7 +175,7 @@ def configure_spoofer(system_configuration: TCPRequestConfig, mss: int) -> bool:
         return False
 
 if __name__ == "__main__":
-    
+
     if len(sys.argv) < 2:
         print('Usage: sudo python3 ostealth.py system')
         print('\nSupported systems are: WindowsXP, Windows7, FreeBSD, OpenBSD, Solaris, Linux')
@@ -195,4 +187,3 @@ if __name__ == "__main__":
     system_config = config_factory.signature_to_tcpr(default_mss[taken_system], signatures[taken_system])
 
     configure_spoofer(system_config, default_mss[taken_system])
-

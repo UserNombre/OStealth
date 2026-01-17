@@ -1,6 +1,6 @@
 all: unload compile load
 
-DEV = lo
+DEV = enp0s3
 
 compile:
 	clang -O2 -g -target bpf -c ostealth.c -o ostealth.o
