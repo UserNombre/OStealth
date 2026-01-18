@@ -202,7 +202,7 @@ def parse_p0f_log(content):
         
     # Prioritize the last valid session
     for session in reversed(sessions):
-        if session["data"].get("os") and session["data"].get("os") != "???":
+        if session["data"].get("os") and session["data"].get("os") != "???" and session["data"].get("client") is not None:
             return session["data"], session["raw"]
             
     # Fallback
