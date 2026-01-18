@@ -44,6 +44,9 @@ OStealth is a kernel-space eBPF tool that modifies outgoing TCP SYN packets in r
 ⚠️ **Important:** OStealth only affects p0f. It does not spoof active fingerprinting tools such as nmap.
 
 ### Install dependencies and compile (Kali Linux)
+
+You may need to reboot your machine after this step.
+
 ```bash
 # Install required packages
 sudo apt update
