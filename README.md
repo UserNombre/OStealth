@@ -45,8 +45,6 @@ OStealth is a kernel-space eBPF tool that modifies outgoing TCP SYN packets in r
 
 ### Install dependencies and compile (Kali Linux)
 
-You should reboot your machine after this step.
-
 ```bash
 # Install required packages
 sudo apt update
