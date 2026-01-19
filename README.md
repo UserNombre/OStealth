@@ -12,9 +12,9 @@
  
 This project is composed of three independent but complementary components, designed to demonstrate OS fingerprinting evasion and detection techniques:
 
-1. **OStealth (eBPF)** – Passive OS fingerprint spoofing (p0f only)
-2. **AI Module** – Active fingerprinting detection using nmap
-3. **Application & Demonstrations** – Dashboard and practical traffic tests
+1. **OStealth (eBPF)** – Passive OS fingerprint spoofing (p0f only) (files within the top level folder)
+2. **AI Module** – Active fingerprinting detection using nmap (files within the "modeling" folder)
+3. **Application & Demonstrations** – Dashboard and practical traffic tests (files within the "dashboard/final" folder)
 
 ## 📌 Recommended Deployment Flow
 
